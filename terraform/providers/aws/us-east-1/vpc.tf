@@ -11,8 +11,12 @@ module "vpc" {
 
   enable_dns_support   = true
   enable_dns_hostnames = true
+  enable_nat_gateway = true  
+  single_nat_gateway = true  
 
   azs      = ["${data.aws_availability_zones.available.names[0]}",
-              "${data.aws_availability_zones.available.names[1]}",
-              "${data.aws_availability_zones.available.names[2]}"]
+    "${data.aws_availability_zones.available.names[1]}",
+    "${data.aws_availability_zones.available.names[2]}"]
+
+  private_subnets  = ["10.0.100.0/24", "10.0.101.0/24", "10.0.102.0/24"]  
 }
