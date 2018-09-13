@@ -22,6 +22,6 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-output "execution_role_arn" {
+output "role_arn" {
   value = "${aws_iam_role.ecs_execution_role.arn}"
 }

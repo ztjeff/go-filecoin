@@ -1,3 +1,4 @@
+
 resource "aws_ecs_task_definition" "service" {
   family                   = "${var.name}"
   container_definitions    = "${var.container_definition}"
@@ -29,7 +30,7 @@ resource "aws_security_group" "service" {
     from_port   = "${var.port}"
     to_port     = "${var.port}"
     protocol    = "tcp"
-    security_groups = ["${var.alb_security_group_id}"]
+    security_groups = ["${var.instances_security_group_id}"]
   }
 
   tags {
@@ -51,7 +52,7 @@ resource "aws_ecs_service" "service" {
   }
 
   load_balancer {
-    target_group_arn = "${aws_alb_target_group.service.arn}"
+    target_group_arn = "${var.lb_target_group_arn}"
     container_name   = "${var.name}"
     container_port   = "${var.port}"
   }
@@ -62,5 +63,5 @@ resource "aws_ecs_service" "service" {
   #   ignore_changes = ["task_definition"]
   # }
 
-  depends_on = ["aws_alb_target_group.service"]
+  # depends_on = ["aws_alb_target_group.service"]
 }

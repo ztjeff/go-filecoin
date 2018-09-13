@@ -1,0 +1,25 @@
+[
+  {
+    "name": "logstash",
+    "image": "657871693752.dkr.ecr.us-east-1.amazonaws.com/logstash:latest",
+    "essential": true,
+    "memory": 1024,
+    "networkMode": "awsvpc",
+    "family": "logstash-kh",
+    "taskRoleArn": "arn:aws:iam::account_number_here:role/test-dev-ecs-task-role",
+    "portMappings": [
+      {
+        "containerPort": 5044,
+        "hostPort": 5044
+      }
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "logstash-kh",
+        "awslogs-region": "us-east-1",
+        "awslogs-stream-prefix": "test-dev"
+      }
+    }
+  }
+]
