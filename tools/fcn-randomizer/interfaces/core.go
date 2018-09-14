@@ -1,6 +1,8 @@
 package randi
 
 import (
+	"context"
+
 	tb "github.com/ipfs/iptb/testbed"
 	"github.com/ipfs/iptb/testbed/interfaces"
 )
@@ -11,12 +13,17 @@ type Network interface {
 	tb.Testbed
 }
 
+type Precondition interface {
+	Name() string
+	Condition(ctx context.Context, n testbedi.Core) (bool, error)
+}
+
 type Action interface {
 	// Name is what the action is called
 	Name() string
 
 	// Runs a command in the context of the node
-	Run(n testbedi.Core) (testbedi.Output, error)
+	Run(ctx context.Context, n testbedi.Core) (testbedi.Output, error)
 
 	// Attributes are anything that shape the execution of an action, and example
 	// could be: "maxBidPrice", this limits the price of a bid
@@ -26,7 +33,7 @@ type Action interface {
 	// Preconditions returns a slice of functions that must eval to true before
 	// an action can be performed on a given node, an example could be:
 	// checking the node has a miner address configured before trying to mine a block
-	Preconditions() []func(n testbedi.Core) (bool, error)
+	Preconditions() []Precondition
 }
 
 type Story interface {

@@ -6,8 +6,8 @@ import (
 	iptb "github.com/ipfs/iptb/testbed"
 	"github.com/ipfs/iptb/testbed/interfaces"
 
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/interfaces"
 	plugin "github.com/filecoin-project/go-filecoin/tools/iptb-plugins/filecoin/local"
-	"github.com/filecoin-project/go-randomizer/interfaces"
 )
 
 // this ensures the filecoin plugin has been loaded into iptb

@@ -1,9 +1,9 @@
 package randomizer
 
 import (
-	"github.com/filecoin-project/go-randomizer/actions"
-	"github.com/filecoin-project/go-randomizer/interfaces"
-	"github.com/filecoin-project/go-randomizer/network"
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/actions"
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/interfaces"
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/network"
 )
 
 type BaseRandomizer struct {

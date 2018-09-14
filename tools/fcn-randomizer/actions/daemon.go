@@ -2,42 +2,46 @@ package actions
 
 import (
 	"context"
-	"os"
+	"errors"
+	"fmt"
 
-	logger "github.com/ipfs/go-log"
-	lgwriter "github.com/ipfs/go-log/writer"
 	"github.com/ipfs/iptb/testbed/interfaces"
 
-	"github.com/filecoin-project/go-randomizer/interfaces"
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/actions/preconditions"
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/interfaces"
 )
-
-func init() {
-	logger.SetAllLoggers(4)
-	file, err := os.Create("/tmp/networkRandomizer_auditlogs.json")
-	if err != nil {
-		panic(err)
-	}
-	lgwriter.WriterGroup.AddWriter(file)
-}
 
 type DaemonAction struct {
 	name          string
 	attributes    map[string]string
-	preconditions []func(n testbedi.Core) (bool, error)
+	preconditions []randi.Precondition
 }
 
 func (i *DaemonAction) Name() string {
 	return i.name
 }
 
-func (i *DaemonAction) Run(n testbedi.Core) (testbedi.Output, error) {
-	log.Infof("Node: %s Running go-filecoin daemon", n)
-
-	ctx := context.Background()
-
+func (i *DaemonAction) Run(ctx context.Context, n testbedi.Core) (out testbedi.Output, err error) {
+	log.Infof("Node: %s Running go-filecoin %s", n, i.name)
 	ctx = log.Start(ctx, i.name)
-	log.SetTag(ctx, "node", n)
-	defer log.Finish(ctx)
+	defer func() {
+		log.SetTags(ctx, map[string]interface{}{
+			"node":     n,
+			"run":      i.name,
+			"exitcode": out.ExitCode(),
+		})
+		log.FinishWithErr(ctx, err)
+	}()
+
+	for _, p := range i.Preconditions() {
+		pass, err := p.Condition(ctx, n)
+		if err != nil {
+			return nil, err
+		}
+		if !pass {
+			return nil, errors.New(fmt.Sprintf("precondition: %s failed", p.Name()))
+		}
+	}
 
 	return n.Start(ctx, true)
 }
@@ -50,14 +54,19 @@ func (i *DaemonAction) Attr(key string) string {
 	panic("not implemented")
 }
 
-func (i *DaemonAction) Preconditions() []func(n testbedi.Core) (bool, error) {
-	return nil
+func (i *DaemonAction) Preconditions() []randi.Precondition {
+	return i.preconditions
 }
 
 func NewDaemonAction() randi.Action {
+	var pc []randi.Precondition
+
+	hasRepo := new(preconditions.HasRepo)
+
+	pc = append(pc, hasRepo)
 	return &DaemonAction{
 		name:          "daemon",
 		attributes:    nil,
-		preconditions: nil,
+		preconditions: pc,
 	}
 }

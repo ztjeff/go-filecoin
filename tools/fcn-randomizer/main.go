@@ -1,17 +1,19 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 
 	logging "github.com/ipfs/go-log"
 	iptb "github.com/ipfs/iptb/testbed/interfaces"
 
-	"github.com/filecoin-project/go-randomizer/randomizer"
+	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/randomizer"
 )
 
 var log = logging.Logger("main")
 
 func main() {
+	ctx := context.Background()
 	rand, err := randomizer.NewRandomizer()
 	if err != nil {
 		panic(err)
@@ -42,7 +44,7 @@ func main() {
 	// this is basically a story to init and start nodes
 	for _, n := range nodes {
 		// first we need to init the nodes repo
-		out, err := initAct.Run(n)
+		out, err := initAct.Run(ctx, n)
 		if err != nil {
 			panic(err)
 		}
@@ -60,7 +62,7 @@ func main() {
 		log.Infof("Node: %s Result: %s", n, string(bytesOut))
 
 		// we done good so far, lets start the daemon
-		out, err = daemAct.Run(n)
+		out, err = daemAct.Run(ctx, n)
 		if err != nil {
 			panic(err)
 		}
