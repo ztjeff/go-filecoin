@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"time"
 
 	logging "github.com/ipfs/go-log"
 	iptb "github.com/ipfs/iptb/testbed/interfaces"
@@ -68,7 +69,18 @@ func main() {
 		}
 		log.Infof("Node: %s Result: daemon started ok!", n)
 	}
+
+	// the network will now connect the nodes
+	if err := rand.Connect(ctx, nodes[0], nodes[1]); err != nil {
+		panic(err)
+	}
+	if err := rand.Connect(ctx, nodes[1], nodes[2]); err != nil {
+		panic(err)
+	}
+
 	log.Info("Complete")
+	// this sleep allows defered event log calls to write TODO fix this
+	time.Sleep(time.Second * 2)
 
 }
 

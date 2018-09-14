@@ -65,4 +65,10 @@ type Randomizer interface {
 	// Events represent an audit log of every action/story a randomizer has performed.
 	// This will probs be a stream of ndjson, should also be written to a file
 	Events() (interface{}, error)
+
+	// Connect connects the nodes together
+	// TODO this should be an action, but the interface doesn't allow it
+	// although having a run command accept more than a singe node makes things
+	// confussing
+	Connect(ctx context.Context, n1, n2 testbedi.Core) error
 }

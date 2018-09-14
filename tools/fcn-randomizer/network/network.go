@@ -3,12 +3,15 @@ package network
 import (
 	"io/ioutil"
 
+	logging "github.com/ipfs/go-log"
 	iptb "github.com/ipfs/iptb/testbed"
 	"github.com/ipfs/iptb/testbed/interfaces"
 
 	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/interfaces"
 	plugin "github.com/filecoin-project/go-filecoin/tools/iptb-plugins/filecoin/local"
 )
+
+var log = logging.Logger("network")
 
 // this ensures the filecoin plugin has been loaded into iptb
 func init() {
@@ -53,6 +56,7 @@ func (bn *BaseNetwork) Specs() ([]*iptb.NodeSpec, error) {
 }
 
 func NewNetwork(name string, count int) (randi.Network, error) {
+	log.Infof("Creating Network: %s, Size: %d", name, count)
 	networkDir, err := ioutil.TempDir("", name)
 	if err != nil {
 		return nil, err
