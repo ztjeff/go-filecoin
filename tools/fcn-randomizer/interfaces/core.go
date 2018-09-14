@@ -23,7 +23,7 @@ type Action interface {
 	Name() string
 
 	// Runs a command in the context of the node
-	Run(ctx context.Context, n testbedi.Core) (testbedi.Output, error)
+	Run(ctx context.Context, n testbedi.Core, args ...string) (testbedi.Output, error)
 
 	// Attributes are anything that shape the execution of an action, and example
 	// could be: "maxBidPrice", this limits the price of a bid
@@ -71,4 +71,6 @@ type Randomizer interface {
 	// although having a run command accept more than a singe node makes things
 	// confussing
 	Connect(ctx context.Context, n1, n2 testbedi.Core) error
+
+	Seed() int64
 }

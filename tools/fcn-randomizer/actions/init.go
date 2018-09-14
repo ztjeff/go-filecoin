@@ -32,19 +32,20 @@ func (i *InitAction) Name() string {
 	return i.name
 }
 
-func (i *InitAction) Run(ctx context.Context, n testbedi.Core) (out testbedi.Output, err error) {
-	log.Infof("Node: %s Running go-filecoin %s", n, i.name)
+func (i *InitAction) Run(ctx context.Context, n testbedi.Core, args ...string) (out testbedi.Output, err error) {
+	log.Infof("Node: %s Running go-filecoin %s %s", n, i.name, args)
 	ctx = log.Start(ctx, i.name)
 	defer func() {
 		log.SetTags(ctx, map[string]interface{}{
 			"node":     n,
-			"run":      i.name,
+			"cmd":      i.name,
+			"args":     args,
 			"exitcode": out.ExitCode(),
 		})
 		log.FinishWithErr(ctx, err)
 	}()
 
-	return n.Init(ctx)
+	return n.Init(ctx, args...)
 }
 
 func (i *InitAction) Attrs() map[string]string {

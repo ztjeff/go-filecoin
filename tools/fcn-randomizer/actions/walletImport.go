@@ -7,21 +7,20 @@ import (
 
 	"github.com/ipfs/iptb/testbed/interfaces"
 
-	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/actions/preconditions"
 	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/interfaces"
 )
 
-type DaemonAction struct {
+type WalletImportAction struct {
 	name          string
 	attributes    map[string]string
 	preconditions []randi.Precondition
 }
 
-func (i *DaemonAction) Name() string {
+func (i *WalletImportAction) Name() string {
 	return i.name
 }
 
-func (i *DaemonAction) Run(ctx context.Context, n testbedi.Core, args ...string) (out testbedi.Output, err error) {
+func (i *WalletImportAction) Run(ctx context.Context, n testbedi.Core, args ...string) (out testbedi.Output, err error) {
 	log.Infof("Node: %s Running go-filecoin %s %s", n, i.name, args)
 	ctx = log.Start(ctx, i.name)
 	defer func() {
@@ -44,30 +43,28 @@ func (i *DaemonAction) Run(ctx context.Context, n testbedi.Core, args ...string)
 		}
 	}
 
-	return n.Start(ctx, true, args...)
+	cmd := []string{"go-filecoin", "wallet", "import"}
+	cmd = append(cmd, args...)
+
+	return n.RunCmd(ctx, nil, cmd...)
 }
 
-func (i *DaemonAction) Attrs() map[string]string {
+func (i *WalletImportAction) Attrs() map[string]string {
 	panic("not implemented")
 }
 
-func (i *DaemonAction) Attr(key string) string {
+func (i *WalletImportAction) Attr(key string) string {
 	panic("not implemented")
 }
 
-func (i *DaemonAction) Preconditions() []randi.Precondition {
+func (i *WalletImportAction) Preconditions() []randi.Precondition {
 	return i.preconditions
 }
 
-func NewDaemonAction() randi.Action {
-	var pc []randi.Precondition
-
-	hasRepo := new(preconditions.HasRepo)
-
-	pc = append(pc, hasRepo)
-	return &DaemonAction{
-		name:          "daemon",
+func NewWalletImportAction() randi.Action {
+	return &WalletImportAction{
+		name:          "wallet import",
 		attributes:    nil,
-		preconditions: pc,
+		preconditions: nil,
 	}
 }

@@ -2,7 +2,10 @@ package randomizer
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"os"
+	"os/exec"
 
 	logging "github.com/ipfs/go-log"
 	lgwriter "github.com/ipfs/go-log/writer"
@@ -22,6 +25,63 @@ func init() {
 		panic(err)
 	}
 	lgwriter.WriterGroup.AddWriter(file)
+
+	dumbdumb()
+}
+
+func dumbdumb() {
+	// I am aware this needs to be removed... but it works for now
+	brute := exec.Command("bash", "-c", `cat setup.json | gengen --json > genesis.car 2> gen.json && cat gen.json | jq ".Miners[0].Address" > miner0 && cat gen.json | jq ".Miners[1].Address" > miner1 && cat gen.json | jq ".Miners[2].Address" > miner2 && cat gen.json | jq ".Keys[\"0\"]" > 0.key && cat gen.json | jq ".Keys[\"1\"]" > 1.key && cat gen.json | jq ".Keys[\"2\"]" > 2.key`)
+
+	out, err := brute.Output()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(out)
+}
+
+// TODO make gengen an importable package
+func setupGenesis(count string) error {
+	gensetup, err := exec.LookPath("setupgen")
+	if err != nil {
+		panic(err)
+	}
+	gengen, err := exec.LookPath("gengen")
+	if err != nil {
+		panic(err)
+	}
+	setup := exec.Command(gensetup, "-count", count)
+	setupPipe, err := setup.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
+	genesis := exec.Command(gengen)
+	if err != nil {
+		panic(err)
+	}
+	genesis.Stdin = setupPipe
+
+	if err := setup.Start(); err != nil {
+		panic(err)
+	}
+	output, err := genesis.Output()
+	if err != nil {
+		panic(err)
+	}
+	if err := setup.Wait(); err != nil {
+		panic(err)
+	}
+	genFile, err := os.Create("./genesis.car")
+	if err != nil {
+		panic(err)
+	}
+	defer genFile.Close()
+	_, err = genFile.Write(output)
+	if err != nil {
+		panic(err)
+	}
+	return nil
+	// jfc this gives me a panic attack...but it works :)
 }
 
 type BaseRandomizer struct {
@@ -30,6 +90,8 @@ type BaseRandomizer struct {
 
 	// Actions represent the set of actions the randomizer is capable of performing
 	actions []randi.Action
+
+	seed int64
 }
 
 func (b *BaseRandomizer) Network() (randi.Network, error) {
@@ -50,6 +112,10 @@ func (b *BaseRandomizer) Attr(key string) string {
 
 func (b *BaseRandomizer) Events() (interface{}, error) {
 	panic("not implemented")
+}
+
+func (b *BaseRandomizer) Seed() int64 {
+	return b.seed
 }
 
 // TODO this is shoe-horned in here, not sure if Connect should be an
@@ -76,16 +142,21 @@ func NewRandomizer() (randi.Randomizer, error) {
 		return nil, err
 	}
 
-	initact := actions.NewInitAction()
-	daemonact := actions.NewDaemonAction()
+	// generate a seed
+	seed := rand.Int63()
 
-	var actions []randi.Action
-	actions = append(actions, initact)
-	actions = append(actions, daemonact)
+	var acts []randi.Action
+	acts = append(acts, actions.NewInitAction())
+	acts = append(acts, actions.NewDaemonAction())
+	acts = append(acts, actions.NewWalletImportAction())
+	acts = append(acts, actions.NewConfigAction())
+	acts = append(acts, actions.NewMineOnceAction())
 
 	baseRand := &BaseRandomizer{
-		actions: actions,
+		actions: acts,
 		network: randNet,
+		seed:    seed,
 	}
+	log.Infof("Create Ranzomizer with actions: %s, network: %s, seed: %d", baseRand.actions, baseRand.network.Name(), baseRand.Seed())
 	return baseRand, nil
 }

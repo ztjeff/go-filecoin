@@ -11,17 +11,17 @@ import (
 	"github.com/filecoin-project/go-filecoin/tools/fcn-randomizer/interfaces"
 )
 
-type DaemonAction struct {
+type ConfigAction struct {
 	name          string
 	attributes    map[string]string
 	preconditions []randi.Precondition
 }
 
-func (i *DaemonAction) Name() string {
+func (i *ConfigAction) Name() string {
 	return i.name
 }
 
-func (i *DaemonAction) Run(ctx context.Context, n testbedi.Core, args ...string) (out testbedi.Output, err error) {
+func (i *ConfigAction) Run(ctx context.Context, n testbedi.Core, args ...string) (out testbedi.Output, err error) {
 	log.Infof("Node: %s Running go-filecoin %s %s", n, i.name, args)
 	ctx = log.Start(ctx, i.name)
 	defer func() {
@@ -44,29 +44,29 @@ func (i *DaemonAction) Run(ctx context.Context, n testbedi.Core, args ...string)
 		}
 	}
 
-	return n.Start(ctx, true, args...)
+	cmd := []string{"go-filecoin", "config"}
+	cmd = append(cmd, args...)
+
+	return n.RunCmd(ctx, nil, cmd...)
 }
 
-func (i *DaemonAction) Attrs() map[string]string {
+func (i *ConfigAction) Attrs() map[string]string {
 	panic("not implemented")
 }
 
-func (i *DaemonAction) Attr(key string) string {
+func (i *ConfigAction) Attr(key string) string {
 	panic("not implemented")
 }
 
-func (i *DaemonAction) Preconditions() []randi.Precondition {
+func (i *ConfigAction) Preconditions() []randi.Precondition {
 	return i.preconditions
 }
 
-func NewDaemonAction() randi.Action {
+func NewConfigAction() randi.Action {
 	var pc []randi.Precondition
-
-	hasRepo := new(preconditions.HasRepo)
-
-	pc = append(pc, hasRepo)
-	return &DaemonAction{
-		name:          "daemon",
+	pc = append(pc, new(preconditions.HasRepo))
+	return &ConfigAction{
+		name:          "config",
 		attributes:    nil,
 		preconditions: pc,
 	}
