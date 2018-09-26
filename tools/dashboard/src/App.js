@@ -19,6 +19,22 @@ const ConnectedNetwork = connect(
       return lbt
     }, Infinity)
 
+    peers.sort((a, b) => {
+      if (a.nick && b.nick) {
+        return a.nick.localeCompare(b.nick)
+      }
+
+      if (a.nick && !b.nick) {
+        return -1
+      }
+
+      if (b.nick && !a.nick) {
+        return 1
+      }
+
+      return a.id.localeCompare(b.id)
+    })
+
     return {
       peers: peers,
       stats: {
