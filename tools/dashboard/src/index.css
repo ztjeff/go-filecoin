@@ -1,0 +1,7 @@
+@import "../node_modules/tachyons";
+@import "../node_modules/ipfs-css";
+
+
+.striped--near-white2:nth-child(even) {
+    background-color:#f4f4f4;
+}

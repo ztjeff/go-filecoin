@@ -1,0 +1,38 @@
+{
+  "name": "filecoin-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "classnames": "^2.2.6",
+    "ipfs-css": "^0.10.0",
+    "react": "^16.5.2",
+    "react-dom": "^16.5.2",
+    "react-redux": "^5.0.7",
+    "react-router-dom": "^4.3.1",
+    "react-scripts": "1.1.5",
+    "redux": "^4.0.0",
+    "redux-saga": "^0.16.0",
+    "tachyons": "^4.11.1"
+  },
+  "proxy": {
+    "/feed": {
+      "target": "ws://localhost:5050",
+      "ws": true
+    }
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "^3.4.11",
+    "@storybook/addon-links": "^3.4.11",
+    "@storybook/addons": "^3.4.11",
+    "@storybook/react": "^3.4.11",
+    "babel-eslint": "^10.0.0",
+    "standard": "^12.0.1",
+    "ws": "^6.0.0"
+  }
+}
