@@ -17,12 +17,13 @@ import (
 	"gx/ipfs/QmVmDhyTTUcQXFD1rRQ64fGLMSAoaQvNH3hwuaCFAPq2hy/errors"
 	ma "gx/ipfs/QmYmsdtJ3HsodkePE3eU3TsCaP2YvPZJ4LoXnNkDE5Tpt7/go-multiaddr"
 
-	"github.com/filecoin-project/go-filecoin/address"
+	"github.com/filecoin-project/go-filecoin/actor/builtin/storagemarket"
 	"github.com/filecoin-project/go-filecoin/api/impl"
 	"github.com/filecoin-project/go-filecoin/config"
 	"github.com/filecoin-project/go-filecoin/mining"
 	"github.com/filecoin-project/go-filecoin/node"
 	"github.com/filecoin-project/go-filecoin/repo"
+	"github.com/filecoin-project/go-filecoin/types"
 )
 
 var log = logging.Logger("commands")
@@ -173,7 +174,6 @@ func runAPIAndWait(ctx context.Context, node *node.Node, config *config.Config, 
 	// Heartbeat
 	go func() {
 		for {
-			tsfunc := node.ChainMgr.GetHeaviestTipSet
 
 			beat, err := time.ParseDuration(config.Stats.HeartbeatPeriod)
 			if err != nil {
@@ -185,40 +185,13 @@ func runAPIAndWait(ctx context.Context, node *node.Node, config *config.Config, 
 			log.Debugf("starting heartbeat, with period: %v", beat)
 			ctx = log.Start(ctx, "HeartBeat")
 
-			rewardAddr, err := node.MiningAddress()
+			hb, err := TakePulse(node)
 			if err != nil {
-				log.Debug("No miner address configured during hearbeat")
-				rewardAddr = address.Address{}
+				log.Warningf("Could not get heartbeat: %v", err)
+				log.FinishWithErr(ctx, err)
+				continue
 			}
-			ts := tsfunc()
-			walletAddrs := node.Wallet.Addresses()
-			pendingMsgs := node.MsgPool.Pending()
-			bstBlk := ts.ToSortedCidSet().String()
-			asks, err := node.StorageBroker.GetMarketPeeker().GetStorageAskSet(context.Background())
-			if err != nil {
-				log.Warningf("Heartbeat faild to get ask set: %v", err)
-			}
-			bids, err := node.StorageBroker.GetMarketPeeker().GetBidSet(context.Background())
-			if err != nil {
-				log.Warningf("Heartbeat faild to get bid set: %v", err)
-			}
-			var prs []string
-			for _, p := range node.Host.Peerstore().Peers() {
-				prs = append(prs, p.Pretty())
-			}
-
-			log.SetTags(ctx, map[string]interface{}{
-				"reward-address":   rewardAddr.String(),
-				"wallet-address":   walletAddrs,
-				"pending-messages": pendingMsgs,
-				"best-block":       bstBlk,
-				"ask-list":         asks,
-				"bid-list":         bids,
-				"deal-list":        "", // cant get deals as there is no deal market peeker
-				"peer-id":          node.Host.ID().Pretty(),
-				"peers":            prs,
-				"peerID":           node.Host.ID().Pretty(),
-			})
+			log.SetTag(ctx, "heartbeat", hb)
 			log.Finish(ctx)
 			log.Debug("completed heartbeat")
 		}
@@ -236,4 +209,113 @@ func runAPIAndWait(ctx context.Context, node *node.Node, config *config.Config, 
 	}
 
 	return api.Daemon().Stop(ctx)
+}
+
+// Heartbeat represents the information sent from a node as a heartbeat
+type Heartbeat struct {
+	MinerAddress    string
+	WalletAddresses []string
+
+	PendingMessages []*types.SignedMessage
+
+	HeaviestTipset types.SortedCidSet
+	TipsetHeight   uint64
+
+	AskSet  []*storagemarket.Ask
+	BidSet  []*storagemarket.Bid
+	DealSet []*storagemarket.Deal
+
+	Peers  []string
+	PeerID string
+}
+
+// TakePulse collects the information needed from a node to construct a heartbeat
+func TakePulse(node *node.Node) (*Heartbeat, error) {
+	// Get the Miner Address, set to empty string if unset
+	var minerAddress string
+	maddr, err := node.MiningAddress()
+	if err != nil {
+		log.Debug("No miner address configured during hearbeat")
+		minerAddress = ""
+	} else {
+		minerAddress = maddr.String()
+	}
+
+	// Get all the wallet addresses
+	var walletAddresses []string
+	waddrs := node.Wallet.Addresses()
+	for _, a := range waddrs {
+		walletAddresses = append(walletAddresses, a.String())
+	}
+
+	// Get a list of pending messages
+	pendingMessages := node.MsgPool.Pending()
+
+	// Get the heaviest tipset
+	ts := node.ChainMgr.GetHeaviestTipSet()
+	heaviestTipset := ts.ToSortedCidSet()
+	// Get the heaviest tipset's height
+	tipsetHeight, err := ts.Height()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tipset height")
+	}
+
+	// Get the asks made by this node
+	var askSet []*storagemarket.Ask
+	aSet, err := node.StorageBroker.GetMarketPeeker().GetStorageAskSet(context.Background())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ask set from storagemarket")
+	}
+	for _, a := range aSet {
+		if a.Owner.String() == minerAddress {
+			askSet = append(askSet, a)
+		}
+	}
+
+	// Get the bids made by this node
+	var bidSet []*storagemarket.Bid
+	bSet, err := node.StorageBroker.GetMarketPeeker().GetBidSet(context.Background())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get bid set from storagemarket")
+	}
+	for _, b := range bSet {
+		for _, addr := range walletAddresses {
+			if b.Owner.String() == addr {
+				bidSet = append(bidSet, b)
+			}
+		}
+	}
+
+	// TODO Get the deals made by this node
+	var dealSet []*storagemarket.Deal
+
+	// Get all peers of this node
+	var peers []string
+	for _, p := range node.Host.Peerstore().Peers() {
+		// lets not include our own peer ID in the connection list
+		if p == node.Host.ID() {
+			continue
+		}
+		peers = append(peers, p.Pretty())
+	}
+
+	// Get our peerID
+	peerID := node.Host.ID().Pretty()
+
+	return &Heartbeat{
+		MinerAddress:    minerAddress,
+		WalletAddresses: walletAddresses,
+
+		PendingMessages: pendingMessages,
+
+		HeaviestTipset: heaviestTipset,
+		TipsetHeight:   tipsetHeight,
+
+		AskSet:  askSet,
+		BidSet:  bidSet,
+		DealSet: dealSet,
+
+		Peers:  peers,
+		PeerID: peerID,
+	}, nil
 }

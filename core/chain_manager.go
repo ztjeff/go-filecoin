@@ -27,7 +27,7 @@ import (
 
 var log = logging.Logger("chain")
 
-var ProcessNewBlockEvent = "ProcessNewBlock"
+var ProcessNewBlockEvent = "ProcessNewBlock" // nolint: golint
 
 var (
 	// ErrStateRootMismatch is returned when the computed state root doesn't match the expected result.
@@ -420,7 +420,7 @@ func (cm *ChainManager) validateBlockStructure(ctx context.Context, b *types.Blo
 // within state because it is a recursive function and would log a new
 // trace for each invocation.
 func (cm *ChainManager) State(ctx context.Context, blks []*types.Block) (statetree.Tree, error) {
-	log.Info("Calling State")
+	log.Debug("Calling State")
 	return cm.state(ctx, blks)
 }
 

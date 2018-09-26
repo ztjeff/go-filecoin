@@ -51,7 +51,6 @@ func (sc *StorageClient) ProposeDeal(ctx context.Context, d *DealProposal) (dr *
 	ctx = log.Start(ctx, "StorageClient.ProposeDeal")
 	log.SetTags(ctx, map[string]interface{}{
 		"signature": d.ClientSig,
-		"expiry":    d.Deal.Expiry.Uint64(),
 		"dataRef":   d.Deal.DataRef,
 		"askID":     d.Deal.Ask,
 		"bidID":     d.Deal.Bid,
@@ -59,10 +58,9 @@ func (sc *StorageClient) ProposeDeal(ctx context.Context, d *DealProposal) (dr *
 	defer func() {
 		if dr != nil {
 			log.SetTags(ctx, map[string]interface{}{
-				"ID":         dr.ID,
-				"message":    dr.Message,
-				"messageCID": dr.MsgCid.String(),
-				"state":      dr.State.String(),
+				"ID":      dr.ID,
+				"message": dr.Message,
+				"state":   dr.State.String(),
 			})
 		}
 		log.FinishWithErr(ctx, err)
@@ -121,10 +119,9 @@ func (sc *StorageClient) QueryDeal(ctx context.Context, id [32]byte) (dr *DealRe
 	defer func() {
 		if dr != nil {
 			log.SetTags(ctx, map[string]interface{}{
-				"ID":         dr.ID,
-				"message":    dr.Message,
-				"messageCID": dr.MsgCid.String(),
-				"state":      dr.State.String(),
+				"ID":      dr.ID,
+				"message": dr.Message,
+				"state":   dr.State.String(),
 			})
 		}
 		log.FinishWithErr(ctx, err)

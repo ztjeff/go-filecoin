@@ -486,15 +486,6 @@ func (stsa *stateTreeMarketPeeker) queryMessage(ctx context.Context, addr addres
 
 // GetAsk returns the given ask from the current state of the storage market actor
 func (stsa *stateTreeMarketPeeker) GetStorageAsk(ctx context.Context, id uint64) (a *storagemarket.Ask, err error) {
-	ctx = log.Start(ctx, "StorageMarketPeerker.GetStorageAsk")
-	log.SetTag(ctx, "id", id)
-	defer func() {
-		if a != nil {
-			log.SetTag(ctx, "ask", a)
-		}
-		log.FinishWithErr(ctx, err)
-	}()
-
 	var ask storagemarket.Ask
 
 	rets, err := stsa.queryMessage(ctx, address.StorageMarketAddress, "getAsk", big.NewInt(int64(id)))
@@ -511,15 +502,6 @@ func (stsa *stateTreeMarketPeeker) GetStorageAsk(ctx context.Context, id uint64)
 
 // GetBid returns the given bid from the current state of the storage market actor
 func (stsa *stateTreeMarketPeeker) GetBid(ctx context.Context, id uint64) (b *storagemarket.Bid, err error) {
-	ctx = log.Start(ctx, "StorageMarketPeerker.GetBid")
-	log.SetTag(ctx, "id", id)
-	defer func() {
-		if b != nil {
-			log.SetTag(ctx, "bid", b)
-		}
-		log.FinishWithErr(ctx, err)
-	}()
-
 	var bid storagemarket.Bid
 
 	rets, err := stsa.queryMessage(context.TODO(), address.StorageMarketAddress, "getBid", big.NewInt(int64(id)))
@@ -538,14 +520,6 @@ func (stsa *stateTreeMarketPeeker) GetBid(ctx context.Context, id uint64) (b *st
 // GetAskSet returns the given the entire ask set from the storage market
 // TODO limit number of results
 func (stsa *stateTreeMarketPeeker) GetStorageAskSet(ctx context.Context) (as storagemarket.AskSet, err error) {
-	ctx = log.Start(ctx, "StorageMarketPeerker.GetStorageAskSet")
-	defer func() {
-		if as != nil {
-			log.SetTag(ctx, "askSet", as)
-		}
-		log.FinishWithErr(ctx, err)
-	}()
-
 	askSet := storagemarket.AskSet{}
 
 	rets, err := stsa.queryMessage(context.TODO(), address.StorageMarketAddress, "getAllAsks")
@@ -563,14 +537,6 @@ func (stsa *stateTreeMarketPeeker) GetStorageAskSet(ctx context.Context) (as sto
 // GetBidSet returns the given the entire bid set from the storage market
 // TODO limit number of results
 func (stsa *stateTreeMarketPeeker) GetBidSet(ctx context.Context) (bs storagemarket.BidSet, err error) {
-	ctx = log.Start(ctx, "StorageMarketPeerker.GetBidSet")
-	defer func() {
-		if bs != nil {
-			log.SetTag(ctx, "bidSet", bs)
-		}
-		log.FinishWithErr(ctx, err)
-	}()
-
 	bidSet := storagemarket.BidSet{}
 
 	rets, err := stsa.queryMessage(context.TODO(), address.StorageMarketAddress, "getAllBids")
@@ -587,13 +553,6 @@ func (stsa *stateTreeMarketPeeker) GetBidSet(ctx context.Context) (bs storagemar
 }
 
 func (stsa *stateTreeMarketPeeker) GetMinerOwner(ctx context.Context, minerAddress address.Address) (a address.Address, err error) {
-	ctx = log.Start(ctx, "StorageMarketPeerker.GetMinerOwner")
-	log.SetTag(ctx, "minerAddress", minerAddress.String())
-	defer func() {
-		log.SetTag(ctx, "ownerAddress", a)
-		log.FinishWithErr(ctx, err)
-	}()
-
 	rets, err := stsa.queryMessage(ctx, minerAddress, "getOwner")
 	if err != nil {
 		return address.Address{}, err
@@ -608,21 +567,7 @@ func (stsa *stateTreeMarketPeeker) GetMinerOwner(ctx context.Context, minerAddre
 }
 
 // AddDeal adds a deal by sending a message to the storage market actor on chain
-func (stsa *stateTreeMarketPeeker) AddDeal(ctx context.Context, from address.Address, ask, bid uint64, sig types.Signature, data *cid.Cid) (c *cid.Cid, err error) {
-	ctx = log.Start(ctx, "StorageMarketPeerker.AddDeal")
-	log.SetTags(ctx, map[string]interface{}{
-		"from": from.String(),
-		"ask":  ask,
-		"bid":  bid,
-		"sig":  sig,
-		"data": data.String(),
-	})
-	defer func() {
-		if c != nil {
-			log.SetTag(ctx, "dealCid", c.String())
-		}
-		log.FinishWithErr(ctx, err)
-	}()
+func (stsa *stateTreeMarketPeeker) AddDeal(ctx context.Context, from address.Address, ask, bid uint64, sig types.Signature, data *cid.Cid) (*cid.Cid, error) {
 
 	pdata, err := abi.ToEncodedValues(big.NewInt(0).SetUint64(ask), big.NewInt(0).SetUint64(bid), []byte(sig), data.Bytes())
 	if err != nil {

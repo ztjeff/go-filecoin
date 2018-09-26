@@ -105,6 +105,7 @@ func SortBlocks(blks []*Block) {
 	})
 }
 
+// EventKey returns the name of the event for this type.
 func (b *Block) EventKey() string {
 	return "block"
 }

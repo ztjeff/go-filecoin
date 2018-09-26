@@ -32,10 +32,10 @@ func main() {
 
 	for i := 0; i < num; i++ {
 		st.Keys[i] = strconv.Itoa(i)
-		st.PreAlloc[strconv.Itoa(i)] = "10000"
+		st.PreAlloc[strconv.Itoa(i)] = "100000"
 		m := miner{
 			Owner: strconv.Itoa(i),
-			Power: 1000,
+			Power: 100,
 		}
 		st.Miner = append(st.Miner, m)
 	}

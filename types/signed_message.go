@@ -8,7 +8,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/address"
 )
 
-var EventKey = "message"
+var EventKey = "message" // nolint: golint
 var (
 	// ErrMessageSigned is returned when `Sign()` is called on a signedmessage that has previously been signed
 	ErrMessageSigned = errors.New("message already contains a signature")
@@ -71,10 +71,12 @@ func (smsg *SignedMessage) RecoverAddress(r Recoverer) (address.Address, error) 
 
 }
 
+// EventKey returns the name of the event for this type.
 func (smsg *SignedMessage) EventKey() string {
 	return "signedMessage"
 }
 
+// EventValue returns the value of the event for this type.
 func (smsg *SignedMessage) EventValue() map[string]interface{} {
 	return map[string]interface{}{
 		"to":        smsg.To.String(),

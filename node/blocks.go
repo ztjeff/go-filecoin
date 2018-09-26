@@ -15,8 +15,8 @@ const BlocksTopic = "/fil/blocks"
 // MessageTopic is the pubsub topic identifier on which new messages are announced.
 const MessageTopic = "/fil/msgs"
 
-const AddNewBlockEvent = "AddNewBlock"
-const AddNewMessageEvent = "AddNewMessage"
+const AddNewBlockEvent = "AddNewBlock"     // nolint: golint
+const AddNewMessageEvent = "AddNewMessage" // nolint: golint
 
 // AddNewBlock processes a block on the local chain and publishes it to the network.
 func (node *Node) AddNewBlock(ctx context.Context, b *types.Block) (err error) {

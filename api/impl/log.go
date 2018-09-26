@@ -14,8 +14,8 @@ import (
 )
 
 var log = logging.Logger("api/impl")
-var LogStreamJoinEvent = "LogStreamJoin"
-var LogStreamLeaveEvent = "LogStreamLeave"
+var LogStreamJoinEvent = "LogStreamJoin"   // nolint: golint
+var LogStreamLeaveEvent = "LogStreamLeave" // nolint: golint
 
 type nodeLog struct {
 	api *nodeAPI
@@ -54,14 +54,14 @@ func (api *nodeLog) Stream(ctx context.Context, maddr ma.Multiaddr) error {
 	if err != nil {
 		return err
 	}
-	defer mconn.Close()
+	defer mconn.Close() // nolint: errcheck
 	wconn := bufio.NewWriter(mconn)
 
 	r, w := io.Pipe()
 	go func() {
 		// node leaves a connection
 		defer w.Close() // nolint: errcheck
-		defer r.Close()
+		defer r.Close() // nolint: errcheck
 		<-ctx.Done()
 		ctx = log.Start(ctx, LogStreamLeaveEvent)
 		log.SetTag(ctx, "peerID", peerID)
@@ -79,8 +79,8 @@ func (api *nodeLog) Stream(ctx context.Context, maddr ma.Multiaddr) error {
 	// Lets make a crappy filter
 	filterR, filterW := io.Pipe()
 	go func() {
-		defer filterR.Close()
-		defer filterW.Close()
+		defer filterR.Close() // nolint: errcheck
+		defer filterW.Close() // nolint: errcheck
 		<-ctx.Done()
 	}()
 
@@ -93,15 +93,16 @@ func (api *nodeLog) Stream(ctx context.Context, maddr ma.Multiaddr) error {
 				break
 			}
 			var event map[string]interface{}
-			filterDecoder.Decode(&event)
-			if event == nil {
+			if err := filterDecoder.Decode(&event); err != nil {
 				continue
 			}
 			// "filter"
 			// add things to the event log here
 			event["peerName"] = nodeNic
 			event["peerID"] = peerID
-			filterEncoder.Encode(event)
+			if err := filterEncoder.Encode(event); err != nil {
+				continue
+			}
 		}
 	}()
 
@@ -110,7 +111,7 @@ func (api *nodeLog) Stream(ctx context.Context, maddr ma.Multiaddr) error {
 		return err
 	}
 	// flush the rest of the events that may be in the pipe before the defered close
-	wconn.Flush()
+	wconn.Flush() // nolint: errcheck
 
 	return nil
 }

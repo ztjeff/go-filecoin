@@ -44,7 +44,7 @@ printf "Configuring %d nodes\n" "$1"
 for i in $(eval echo {0..$1})
 do
   minerAddr=$(iptb run "$i" cat $GENDIR/minerAddr$i | tail -n 2 | head -n 1)
-  iptb run "$i" -- go-filecoin config mining.minerAddresses ["$minerAddr"]
+  iptb run "$i" -- go-filecoin config mining.minerAddress "$minerAddr"
   iptb run "$i" -- go-filecoin wallet import $GENDIR/walletKey$i
 done
 

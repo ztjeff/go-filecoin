@@ -105,9 +105,10 @@ type WalletConfig struct {
 	DefaultAddress address.Address `toml:"defaultAddress,omitempty"`
 }
 
+// StatsConfig holds all configuration options related to the nodes stats.
 type StatsConfig struct {
-	HeartbeatPeriod string `toml:"heartbeatPeriod",omitempty"`
-	NodeNic         string `toml:"nodeNic",omitempty"`
+	HeartbeatPeriod string `toml:"heartbeatPeriod"`
+	NodeNic         string `toml:"nodeNic"`
 }
 
 func newDefaultWalletConfig() *WalletConfig {

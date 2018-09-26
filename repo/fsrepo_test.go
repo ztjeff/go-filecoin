@@ -37,6 +37,10 @@ const (
 
 [wallet]
   defaultAddress = ""
+
+[stats]
+  heartbeatPeriod = "3s"
+  nodeNic = ""
 `
 )
 

@@ -55,6 +55,10 @@ func TestWriteFile(t *testing.T) {
 
 [wallet]
   defaultAddress = ""
+
+[stats]
+  heartbeatPeriod = "3s"
+  nodeNic = ""
 `,
 		string(content),
 	)

@@ -207,11 +207,11 @@ func (sma *Actor) CreateMiner(vmctx exec.VMContext, pledge *big.Int, publicKey [
 	}
 
 	log.SetTag(ctx, "miner", map[string]interface{}{
-		"pledge":    pledge.String(),
-		"colateral": vmctx.Message().Value.String(),
-		"publicKey": string(publicKey),
-		"peerID":    pid.Pretty(),
-		"address":   ret.(address.Address),
+		"pledge":     pledge.String(),
+		"collateral": vmctx.Message().Value.String(),
+		"publicKey":  string(publicKey),
+		"peerID":     pid.Pretty(),
+		"address":    ret.(address.Address),
 	})
 	return ret.(address.Address), 0, nil
 }
