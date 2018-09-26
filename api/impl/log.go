@@ -3,6 +3,7 @@ package impl
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -41,12 +42,20 @@ func (api *nodeLog) Stream(ctx context.Context, maddr ma.Multiaddr) error {
 	if err != nil {
 		return err
 	}
-
 	peerID := nodeDetails.ID
+	// Get the nodes nickname.
+	nodeNic, err := api.api.Config().Get("stats.nodeNic")
+	if err != nil {
+		return err
+	}
+
+	// connection the logs will stream on
 	mconn, err := manet.Dial(maddr)
 	if err != nil {
 		return err
 	}
+	defer mconn.Close()
+	wconn := bufio.NewWriter(mconn)
 
 	r, w := io.Pipe()
 	go func() {
@@ -61,17 +70,47 @@ func (api *nodeLog) Stream(ctx context.Context, maddr ma.Multiaddr) error {
 	}()
 
 	writer.WriterGroup.AddWriter(w)
-	wconn := bufio.NewWriter(mconn)
 
 	// node joins a connection
 	ctx = log.Start(ctx, LogStreamJoinEvent)
 	log.SetTag(ctx, "peerID", peerID)
 	log.Finish(ctx)
 
-	_, err = wconn.ReadFrom(r)
+	// Lets make a crappy filter
+	filterR, filterW := io.Pipe()
+	go func() {
+		defer filterR.Close()
+		defer filterW.Close()
+		<-ctx.Done()
+	}()
+
+	filterDecoder := json.NewDecoder(r)
+	filterEncoder := json.NewEncoder(filterW)
+	go func() {
+		for {
+			if ctx.Err() != nil {
+				log.Warningf("filter context error: %v", ctx.Err())
+				break
+			}
+			var event map[string]interface{}
+			filterDecoder.Decode(&event)
+			if event == nil {
+				continue
+			}
+			// "filter"
+			// add things to the event log here
+			event["peerName"] = nodeNic
+			event["peerID"] = peerID
+			filterEncoder.Encode(event)
+		}
+	}()
+
+	_, err = wconn.ReadFrom(filterR)
 	if err != nil {
 		return err
 	}
+	// flush the rest of the events that may be in the pipe before the defered close
+	wconn.Flush()
 
 	return nil
 }

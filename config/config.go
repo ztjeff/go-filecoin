@@ -96,6 +96,7 @@ func newDefaultMiningConfig() *MiningConfig {
 func newDefaultStatsConfig() *StatsConfig {
 	return &StatsConfig{
 		HeartbeatPeriod: "3s",
+		NodeNic:         "",
 	}
 }
 
@@ -106,6 +107,7 @@ type WalletConfig struct {
 
 type StatsConfig struct {
 	HeartbeatPeriod string `toml:"heartbeatPeriod",omitempty"`
+	NodeNic         string `toml:"nodeNic",omitempty"`
 }
 
 func newDefaultWalletConfig() *WalletConfig {
