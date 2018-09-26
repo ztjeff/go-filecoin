@@ -10,18 +10,22 @@ import (
 
 	"gx/ipfs/QmPTfgFTo9PFr1PvPKyKoeMgBvYPh6cX3aDP7DHKVbnCbi/go-ipfs-cmds"
 	cmdhttp "gx/ipfs/QmPTfgFTo9PFr1PvPKyKoeMgBvYPh6cX3aDP7DHKVbnCbi/go-ipfs-cmds/http"
+	logging "gx/ipfs/QmRREK2CAZ5Re2Bd9zZFG6FeYDppUWt5cMgsoUEp3ktgSr/go-log"
 	writer "gx/ipfs/QmRREK2CAZ5Re2Bd9zZFG6FeYDppUWt5cMgsoUEp3ktgSr/go-log/writer"
 	"gx/ipfs/QmSP88ryZkHSRn1fnngAaV2Vcn63WUJzAavnRM9CVdU1Ky/go-ipfs-cmdkit"
 	manet "gx/ipfs/QmV6FjemM1K8oXjrvuq3wuVWWoU2TLDPmNnKrxHzY3v6Ai/go-multiaddr-net"
 	"gx/ipfs/QmVmDhyTTUcQXFD1rRQ64fGLMSAoaQvNH3hwuaCFAPq2hy/errors"
 	ma "gx/ipfs/QmYmsdtJ3HsodkePE3eU3TsCaP2YvPZJ4LoXnNkDE5Tpt7/go-multiaddr"
 
+	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/api/impl"
 	"github.com/filecoin-project/go-filecoin/config"
 	"github.com/filecoin-project/go-filecoin/mining"
 	"github.com/filecoin-project/go-filecoin/node"
 	"github.com/filecoin-project/go-filecoin/repo"
 )
+
+var log = logging.Logger("commands")
 
 // exposed here, to be available during testing
 var sigCh = make(chan os.Signal, 1)
@@ -165,6 +169,60 @@ func runAPIAndWait(ctx context.Context, node *node.Node, config *config.Config, 
 	if err := node.Repo.SetAPIAddr(config.API.Address); err != nil {
 		return errors.Wrap(err, "Could not save API address to repo")
 	}
+
+	// Heartbeat
+	go func() {
+		for {
+			tsfunc := node.ChainMgr.GetHeaviestTipSet
+
+			beat, err := time.ParseDuration(config.Stats.HeartbeatPeriod)
+			if err != nil {
+				log.Warningf("invalid heartbeat value: %s, defaulting to 3s", err)
+				beat, _ = time.ParseDuration("3s") // set a sane default incase of error
+			}
+
+			time.Sleep(beat)
+			log.Debugf("starting heartbeat, with period: %v", beat)
+			ctx = log.Start(ctx, "HeartBeat")
+
+			rewardAddr, err := node.MiningAddress()
+			if err != nil {
+				log.Debug("No miner address configured during hearbeat")
+				rewardAddr = address.Address{}
+			}
+			ts := tsfunc()
+			walletAddrs := node.Wallet.Addresses()
+			pendingMsgs := node.MsgPool.Pending()
+			bstBlk := ts.ToSortedCidSet().String()
+			asks, err := node.StorageBroker.GetMarketPeeker().GetStorageAskSet(context.Background())
+			if err != nil {
+				log.Warningf("Heartbeat faild to get ask set: %v", err)
+			}
+			bids, err := node.StorageBroker.GetMarketPeeker().GetBidSet(context.Background())
+			if err != nil {
+				log.Warningf("Heartbeat faild to get bid set: %v", err)
+			}
+			var prs []string
+			for _, p := range node.Host.Peerstore().Peers() {
+				prs = append(prs, p.Pretty())
+			}
+
+			log.SetTags(ctx, map[string]interface{}{
+				"reward-address":   rewardAddr.String(),
+				"wallet-address":   walletAddrs,
+				"pending-messages": pendingMsgs,
+				"best-block":       bstBlk,
+				"ask-list":         asks,
+				"bid-list":         bids,
+				"deal-list":        "", // cant get deals as there is no deal market peeker
+				"peer-id":          node.Host.ID().Pretty(),
+				"peers":            prs,
+				"peerID":           node.Host.ID().Pretty(),
+			})
+			log.Finish(ctx)
+			log.Debug("completed heartbeat")
+		}
+	}()
 
 	<-sigCh
 	fmt.Println("Got interrupt, shutting down...")
