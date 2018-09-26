@@ -8,6 +8,7 @@ import (
 
 	"gx/ipfs/QmQZadYTDF4ud9DdK85PH2vReJRzUM9YfVW4ReB1q2m51p/go-hamt-ipld"
 	"gx/ipfs/QmQsErDt8Qgw1XrsXf2BpEzDgGWtB1YLsTAARBup5b6B9W/go-libp2p-peer"
+	logging "gx/ipfs/QmRREK2CAZ5Re2Bd9zZFG6FeYDppUWt5cMgsoUEp3ktgSr/go-log"
 	cbor "gx/ipfs/QmV6BQ6fFCf9eFHDuRxvguvqfKLZtZrxthgZvDfRCs4tMN/go-ipld-cbor"
 	"gx/ipfs/QmZFbDTY9jfSBms2MchvYM9oYRbAF19K7Pby47yDBfpPrb/go-cid"
 
@@ -22,6 +23,8 @@ import (
 
 // MinimumPledge is the minimum amount of sectors a user can pledge.
 var MinimumPledge = big.NewInt(10)
+
+var log = logging.Logger("actor/storagemarket")
 
 const (
 	// ErrPledgeTooLow is the error code for a pledge under the MinimumPledge.
@@ -163,7 +166,13 @@ var storageMarketExports = exec.Exports{
 
 // CreateMiner creates a new miner with the a pledge of the given amount of sectors. The
 // miners collateral is set by the value in the message.
-func (sma *Actor) CreateMiner(vmctx exec.VMContext, pledge *big.Int, publicKey []byte, pid peer.ID) (address.Address, uint8, error) {
+func (sma *Actor) CreateMiner(vmctx exec.VMContext, pledge *big.Int, publicKey []byte, pid peer.ID) (_ address.Address, _ uint8, err error) {
+	ctx := context.Background()
+	ctx = log.Start(ctx, "CreateMiner")
+	defer func() {
+		log.FinishWithErr(ctx, err)
+	}()
+
 	var state State
 	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
 		if pledge.Cmp(MinimumPledge) < 0 {
@@ -186,8 +195,6 @@ func (sma *Actor) CreateMiner(vmctx exec.VMContext, pledge *big.Int, publicKey [
 			return nil, err
 		}
 
-		ctx := context.Background()
-
 		state.Miners, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Miners, addr.String(), true)
 		if err != nil {
 			return nil, errors.FaultErrorWrapf(err, "could not set miner key value for lookup with CID: %s", state.Miners)
@@ -199,18 +206,30 @@ func (sma *Actor) CreateMiner(vmctx exec.VMContext, pledge *big.Int, publicKey [
 		return address.Address{}, errors.CodeError(err), err
 	}
 
+	log.SetTag(ctx, "miner", map[string]interface{}{
+		"pledge":    pledge.String(),
+		"colateral": vmctx.Message().Value.String(),
+		"publicKey": string(publicKey),
+		"peerID":    pid.Pretty(),
+		"address":   ret.(address.Address),
+	})
 	return ret.(address.Address), 0, nil
 }
 
 // AddAsk adds an ask order to the orderbook. Must be called by a miner created
 // by this storage market actor.
-func (sma *Actor) AddAsk(vmctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (*big.Int, uint8, error) {
+func (sma *Actor) AddAsk(vmctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (askid *big.Int, retval uint8, err error) {
+	ctx := context.Background()
+
+	ctx = log.Start(ctx, "AddAsk")
+	defer func() {
+		log.FinishWithErr(ctx, err)
+	}()
+
 	var state State
 	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
 		// method must be called by a miner that was created by this storage market actor.
 		miner := vmctx.Message().From
-
-		ctx := context.Background()
 
 		miners, err := actor.LoadLookup(ctx, vmctx.Storage(), state.Miners)
 		if err != nil {
@@ -227,17 +246,19 @@ func (sma *Actor) AddAsk(vmctx exec.VMContext, price *types.AttoFIL, size *types
 
 		askID := state.Orderbook.NextSAskID
 		state.Orderbook.NextSAskID++
-
-		state.Orderbook.StorageAsks, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Orderbook.StorageAsks, keyFromID(askID), &Ask{
+		ask := &Ask{
 			ID:    askID,
 			Price: price,
 			Size:  size,
 			Owner: miner,
-		})
+		}
+
+		state.Orderbook.StorageAsks, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Orderbook.StorageAsks, keyFromID(askID), ask)
 		if err != nil {
 			return nil, errors.FaultErrorWrapf(err, "could not set ask with askID, %d, into lookup", askID)
 		}
 
+		log.SetTag(ctx, "ask", ask)
 		return big.NewInt(0).SetUint64(askID), nil
 	})
 	if err != nil {
@@ -255,10 +276,16 @@ func (sma *Actor) AddAsk(vmctx exec.VMContext, price *types.AttoFIL, size *types
 // AddBid adds a bid order to the orderbook. Can be called by anyone. The
 // message must contain the appropriate amount of funds to be locked up for the
 // bid.
-func (sma *Actor) AddBid(vmctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (*big.Int, uint8, error) {
+func (sma *Actor) AddBid(vmctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (bidid *big.Int, retval uint8, err error) {
+	ctx := context.Background()
+
+	ctx = log.Start(ctx, "AddBid")
+	defer func() {
+		log.FinishWithErr(ctx, err)
+	}()
+
 	var state State
 	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
-		ctx := context.Background()
 
 		lockedFunds := price.CalculatePrice(size)
 		if vmctx.Message().Value.LessThan(lockedFunds) {
@@ -268,17 +295,19 @@ func (sma *Actor) AddBid(vmctx exec.VMContext, price *types.AttoFIL, size *types
 		bidID := state.Orderbook.NextBidID
 		state.Orderbook.NextBidID++
 
-		var err error
-		state.Orderbook.Bids, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Orderbook.Bids, keyFromID(bidID), &Bid{
+		bid := &Bid{
 			ID:    bidID,
 			Price: price,
 			Size:  size,
 			Owner: vmctx.Message().From,
-		})
+		}
+		state.Orderbook.Bids, err = actor.SetKeyValue(ctx,
+			vmctx.Storage(), state.Orderbook.Bids, keyFromID(bidID), bid)
 		if err != nil {
 			return nil, errors.FaultErrorWrapf(err, "could not set bid with bidID, %d, into lookup", bidID)
 		}
 
+		log.SetTag(ctx, "bid", bid)
 		return big.NewInt(0).SetUint64(bidID), nil
 	})
 	if err != nil {
