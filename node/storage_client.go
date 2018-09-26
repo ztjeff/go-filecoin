@@ -49,10 +49,21 @@ func (sc *StorageClient) minerPidForAsk(ctx context.Context, askID uint64) (peer
 // ProposeDeal proposes a deal to the given miner
 func (sc *StorageClient) ProposeDeal(ctx context.Context, d *DealProposal) (dr *DealResponse, err error) {
 	ctx = log.Start(ctx, "StorageClient.ProposeDeal")
-	log.SetTag(ctx, d.LogTag(), d)
+	log.SetTags(ctx, map[string]interface{}{
+		"signature": d.ClientSig,
+		"expiry":    d.Deal.Expiry.Uint64(),
+		"dataRef":   d.Deal.DataRef,
+		"askID":     d.Deal.Ask,
+		"bidID":     d.Deal.Bid,
+	})
 	defer func() {
 		if dr != nil {
-			log.SetTag(ctx, dr.LogTag(), dr)
+			log.SetTags(ctx, map[string]interface{}{
+				"ID":         dr.ID,
+				"message":    dr.Message,
+				"messageCID": dr.MsgCid.String(),
+				"state":      dr.State.String(),
+			})
 		}
 		log.FinishWithErr(ctx, err)
 	}()
@@ -109,7 +120,12 @@ func (sc *StorageClient) QueryDeal(ctx context.Context, id [32]byte) (dr *DealRe
 	log.SetTag(ctx, "id", id)
 	defer func() {
 		if dr != nil {
-			log.SetTag(ctx, dr.LogTag(), dr)
+			log.SetTags(ctx, map[string]interface{}{
+				"ID":         dr.ID,
+				"message":    dr.Message,
+				"messageCID": dr.MsgCid.String(),
+				"state":      dr.State.String(),
+			})
 		}
 		log.FinishWithErr(ctx, err)
 	}()
