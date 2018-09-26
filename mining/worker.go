@@ -172,7 +172,7 @@ func (w *DefaultWorker) Mine(ctx context.Context, input Input, outCh chan<- Outp
 		if isWinningTicket(ticket, myPower, totalPower) {
 			next, err := w.Generate(ctx, input.TipSet, ticket, nullBlkCount)
 			if err == nil {
-				log.SetTag(ctx, "block", next)
+				log.SetTag(ctx, next.EventKey(), next.EventValue())
 			}
 			outCh <- NewOutput(next, err)
 			return

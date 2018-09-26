@@ -104,3 +104,21 @@ func SortBlocks(blks []*Block) {
 		return bytes.Compare(blks[i].Ticket, blks[j].Ticket) == -1
 	})
 }
+
+func (b *Block) EventKey() string {
+	return "block"
+}
+
+// EventValue returns returns a block as an event tag value
+func (b *Block) EventValue() map[string]interface{} {
+	return map[string]interface{}{
+		"miner":     b.Miner.String(),
+		"ticket":    b.Ticket,
+		"parents":   b.Parents.String(),
+		"height":    uint64(b.Height),
+		"nonce":     uint64(b.Nonce),
+		"stateRoot": b.StateRoot.String(),
+		"score":     b.Score(),
+		"cid":       b.Cid().String(),
+	}
+}

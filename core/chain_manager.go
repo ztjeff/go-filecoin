@@ -27,6 +27,8 @@ import (
 
 var log = logging.Logger("chain")
 
+var ProcessNewBlockEvent = "ProcessNewBlock"
+
 var (
 	// ErrStateRootMismatch is returned when the computed state root doesn't match the expected result.
 	ErrStateRootMismatch = errors.New("blocks state root does not match computed result")
@@ -191,7 +193,6 @@ func (cm *ChainManager) Genesis(ctx context.Context, gen GenesisInitFunc) (err e
 
 // setHeaviestTipSet sets the best tipset.  CALLER MUST HOLD THE heaviestTipSet LOCK.
 func (cm *ChainManager) setHeaviestTipSet(ctx context.Context, ts TipSet) error {
-	log.LogKV(ctx, "setHeaviestTipSet", ts.String())
 	if err := putCidSet(ctx, cm.ds, heaviestTipSetKey, ts.ToSortedCidSet()); err != nil {
 		return errors.Wrap(err, "failed to write TipSet cids to datastore")
 	}
@@ -204,7 +205,6 @@ func (cm *ChainManager) setHeaviestTipSet(ctx context.Context, ts TipSet) error 
 }
 
 func putCidSet(ctx context.Context, ds datastore.Datastore, k datastore.Key, cids types.SortedCidSet) error {
-	log.LogKV(ctx, "PutCidSet", cids.String())
 	val, err := json.Marshal(cids)
 	if err != nil {
 		return err
@@ -301,7 +301,6 @@ func (cm *ChainManager) getHeaviestTipSet() TipSet {
 func (cm *ChainManager) maybeAcceptBlock(ctx context.Context, blk *types.Block) (BlockProcessResult, error) {
 	// We have to hold the lock at this level to avoid TOCTOU problems
 	// with the new heaviest tipset.
-	log.LogKV(ctx, "maybeAcceptBlock", blk.Cid().String())
 	cm.heaviestTipSet.Lock()
 	defer cm.heaviestTipSet.Unlock()
 
@@ -338,7 +337,6 @@ func (cm *ChainManager) maybeAcceptBlock(ctx context.Context, blk *types.Block) 
 		return Unknown, err
 	}
 	log.Infof("new heaviest tipset, [s=%s, hs=%s]", newWeight.RatString(), ts.String())
-	log.LogKV(ctx, "maybeAcceptBlock", ts.String())
 	return ChainAccepted, nil
 }
 
@@ -349,7 +347,8 @@ type NewBlockProcessor func(context.Context, *types.Block) (BlockProcessResult, 
 // tipset heavier than our current heaviest, this tipset is accepted as our
 // heaviest tipset. Otherwise an error is returned explaining why it was not accepted.
 func (cm *ChainManager) ProcessNewBlock(ctx context.Context, blk *types.Block) (bpr BlockProcessResult, err error) {
-	ctx = log.Start(ctx, "ChainManager.ProcessNewBlock")
+	ctx = log.Start(ctx, ProcessNewBlockEvent)
+	log.SetTag(ctx, blk.EventKey(), blk.EventValue())
 	defer func() {
 		log.SetTag(ctx, "result", bpr.String())
 		log.FinishWithErr(ctx, err)
@@ -406,7 +405,6 @@ func (cm *ChainManager) newValidTipSet(ctx context.Context, blks []*types.Block)
 // previous block has been validated. TODO: not yet signature checking
 func (cm *ChainManager) validateBlockStructure(ctx context.Context, b *types.Block) error {
 	// TODO: validate signatures on messages
-	log.LogKV(ctx, "validateBlockStructure", b.Cid().String())
 	if b.StateRoot == nil {
 		return fmt.Errorf("block has nil StateRoot")
 	}
@@ -422,7 +420,6 @@ func (cm *ChainManager) validateBlockStructure(ctx context.Context, b *types.Blo
 // within state because it is a recursive function and would log a new
 // trace for each invocation.
 func (cm *ChainManager) State(ctx context.Context, blks []*types.Block) (statetree.Tree, error) {
-	ctx = log.Start(ctx, "State")
 	log.Info("Calling State")
 	return cm.state(ctx, blks)
 }
@@ -650,7 +647,6 @@ type ChainManagerForTest = ChainManager
 // SetHeaviestTipSetForTest enables setting the best tipset directly. Don't use this
 // outside of a testing context.
 func (cm *ChainManagerForTest) SetHeaviestTipSetForTest(ctx context.Context, ts TipSet) error {
-	// added to make `LogKV` call in `setHeaviestTipSet` happy (else it logs an error message)
 	ctx = log.Start(ctx, "SetHeaviestTipSetForTest")
 	for _, b := range ts {
 		_, err := cm.cstore.Put(ctx, b)
@@ -839,7 +835,7 @@ func (cm *ChainManager) weight(ctx context.Context, ts TipSet) (*big.Rat, error)
 // Weight returns the numerator and denominator of the weight of the input tipset.
 func (cm *ChainManager) Weight(ctx context.Context, ts TipSet) (numer uint64, denom uint64, err error) {
 	ctx = log.Start(ctx, "ChainManager.Weight")
-	log.SetTag(ctx, "tipSet", ts)
+	log.SetTag(ctx, "tipSet", ts.String())
 	defer func() {
 		log.SetTags(ctx, map[string]interface{}{
 			"numerator":   numer,

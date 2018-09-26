@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/address"
 )
 
+var EventKey = "message"
 var (
 	// ErrMessageSigned is returned when `Sign()` is called on a signedmessage that has previously been signed
 	ErrMessageSigned = errors.New("message already contains a signature")
@@ -68,6 +69,21 @@ func (smsg *SignedMessage) RecoverAddress(r Recoverer) (address.Address, error) 
 
 	return address.NewMainnet(maybeAddrHash), nil
 
+}
+
+func (smsg *SignedMessage) EventKey() string {
+	return "signedMessage"
+}
+
+func (smsg *SignedMessage) EventValue() map[string]interface{} {
+	return map[string]interface{}{
+		"to":        smsg.To.String(),
+		"from":      smsg.From.String(),
+		"method":    smsg.Method,
+		"nonce":     uint64(smsg.Nonce),
+		"signature": []byte(smsg.Signature),
+		"value":     smsg.Value.String(),
+	}
 }
 
 // NewSignedMessage accepts a message `msg` and a signer `s`. NewSignedMessage returns a `SignedMessage` containing
