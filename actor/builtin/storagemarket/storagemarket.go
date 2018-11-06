@@ -10,6 +10,8 @@ import (
 	cbor "gx/ipfs/QmV6BQ6fFCf9eFHDuRxvguvqfKLZtZrxthgZvDfRCs4tMN/go-ipld-cbor"
 	"gx/ipfs/QmZFbDTY9jfSBms2MchvYM9oYRbAF19K7Pby47yDBfpPrb/go-cid"
 
+	"strconv"
+
 	"github.com/filecoin-project/go-filecoin/abi"
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
@@ -30,28 +32,32 @@ const (
 	ErrPledgeTooLow = 33
 	// ErrUnknownMiner indicates a pledge under the MinimumPledge.
 	ErrUnknownMiner = 34
+	// ErrUnknownAsk indicates the ask for a deal could not be found.
+	ErrUnknownAsk = 35
 	// ErrAskOwnerNotFound indicates the owner of an ask could not be found.
-	ErrAskOwnerNotFound = 35
+	ErrAskOwnerNotFound = 36
 	// ErrInsufficientSpace indicates the bid to too big for the ask.
-	ErrInsufficientSpace = 36
+	ErrInsufficientSpace = 37
 	// ErrInvalidSignature indicates the signature is invalid.
-	ErrInvalidSignature = 37
+	ErrInvalidSignature = 38
 	// ErrUnknownDeal indicates the deal id is not found.
-	ErrUnknownDeal = 38
+	ErrUnknownDeal = 39
 	// ErrNotDealOwner indicates someone other than the deal owner tried to commit.
-	ErrNotDealOwner = 39
+	ErrNotDealOwner = 40
 	// ErrDealCommitted indicates the deal is already committed.
-	ErrDealCommitted = 40
+	ErrDealCommitted = 41
 	// ErrInsufficientBidFunds indicates the value of the bid message is less than the price of the space.
-	ErrInsufficientBidFunds = 41
+	ErrInsufficientBidFunds = 42
 	// ErrInsufficientCollateral indicates the collateral is too low.
-	ErrInsufficientCollateral = 42
+	ErrInsufficientCollateral = 43
 )
 
 // Errors map error codes to revert errors this actor may return.
 var Errors = map[uint8]error{
 	ErrPledgeTooLow:           errors.NewCodedRevertErrorf(ErrPledgeTooLow, "pledge must be at least %s sectors", MinimumPledge),
 	ErrUnknownMiner:           errors.NewCodedRevertErrorf(ErrUnknownMiner, "unknown miner"),
+	ErrUnknownAsk:             errors.NewCodedRevertErrorf(ErrUnknownAsk, "ask id not found"),
+	ErrAskOwnerNotFound:       errors.NewCodedRevertErrorf(ErrAskOwnerNotFound, "cannot create a deal for someone elses ask"),
 	ErrInvalidSignature:       errors.NewCodedRevertErrorf(ErrInvalidSignature, "signature failed to validate"),
 	ErrUnknownDeal:            errors.NewCodedRevertErrorf(ErrUnknownDeal, "unknown deal id"),
 	ErrNotDealOwner:           errors.NewCodedRevertErrorf(ErrNotDealOwner, "miner tried to commit with someone elses deal"),
@@ -73,6 +79,12 @@ type Actor struct{}
 // State is the storage market's storage.
 type State struct {
 	Miners *cid.Cid
+
+	// Asks is a key value store of ask ids to asks
+	Asks *cid.Cid
+
+	// NextSAskID is the ID that will be assigned to the next ask that is created
+	NextSAskID uint64
 
 	// TotalCommitedStorage is the number of sectors that are currently committed
 	// in the whole network.
@@ -110,6 +122,10 @@ func (sma *Actor) Exports() exec.Exports {
 }
 
 var storageMarketExports = exec.Exports{
+	"addAsk": &exec.FunctionSignature{
+		Params: []abi.Type{abi.AttoFIL, abi.BytesAmount},
+		Return: []abi.Type{abi.Integer},
+	},
 	"createMiner": &exec.FunctionSignature{
 		Params: []abi.Type{abi.Integer, abi.Bytes, abi.PeerID},
 		Return: []abi.Type{abi.Address},
@@ -122,6 +138,102 @@ var storageMarketExports = exec.Exports{
 		Params: []abi.Type{},
 		Return: []abi.Type{abi.Integer},
 	},
+	"getAsk": &exec.FunctionSignature{
+		Params: []abi.Type{abi.Integer},
+		Return: []abi.Type{abi.Bytes},
+	},
+	"getAllAsks": &exec.FunctionSignature{
+		Params: []abi.Type{},
+		Return: []abi.Type{abi.Bytes},
+	},
+}
+
+// AddAsk adds an ask order to the orderbook. Must be called by a miner created
+// by this storage market actor.
+func (sma *Actor) AddAsk(vmctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (*big.Int, uint8, error) {
+	var state State
+	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
+		// method must be called by a miner that was created by this storage market actor.
+		miner := vmctx.Message().From
+		ctx := context.Background()
+		miners, err := actor.LoadLookup(ctx, vmctx.Storage(), state.Miners)
+		if err != nil {
+			return nil, errors.FaultErrorWrapf(err, "could not load lookup for miner with CID: %s", state.Miners)
+		}
+		_, err = miners.Find(ctx, miner.String())
+		if err != nil {
+			if err == hamt.ErrNotFound {
+				return nil, Errors[ErrUnknownMiner]
+			}
+			return nil, errors.FaultErrorWrapf(err, "could lookup miner with address: %s", miner)
+		}
+		askID := state.NextSAskID
+		state.NextSAskID++
+		state.Asks, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Asks, keyFromID(askID), &Ask{
+			ID:    askID,
+			Price: price,
+			Size:  size,
+			Owner: miner,
+		})
+		if err != nil {
+			return nil, errors.FaultErrorWrapf(err, "could not set ask with askID, %d, into lookup", askID)
+		}
+		return big.NewInt(0).SetUint64(askID), nil
+	})
+	if err != nil {
+		return nil, errors.CodeError(err), err
+	}
+	askID, ok := ret.(*big.Int)
+	if !ok {
+		return nil, 1, errors.NewRevertErrorf("expected *big.Int to be returned, but got %T instead", ret)
+	}
+	return askID, 0, nil
+}
+
+// GetAllAsks returns all asks on the orderbook.
+// TODO limit number of results
+func (sma *Actor) GetAllAsks(vmctx exec.VMContext) ([]byte, uint8, error) {
+	var state State
+	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
+		ctx := context.Background()
+		askLookup, err := actor.LoadTypedLookup(ctx, vmctx.Storage(), state.Asks, &Ask{})
+		if err != nil {
+			return nil, errors.FaultErrorWrapf(err, "could not load lookup for asks with CID: %s", state.Asks)
+		}
+		askValues, err := askLookup.Values(ctx)
+		if err != nil {
+			return nil, errors.FaultErrorWrap(err, "could not retrieve ask values from storage market")
+		}
+		asks := AskSet{}
+		// translate kvs to AskSet.
+		for _, kv := range askValues {
+			id, err := idFromKey(kv.Key)
+			if err != nil {
+				return nil, errors.FaultErrorWrap(err, "Invalid key in orderbook.asks")
+			}
+			ask, ok := kv.Value.(*Ask)
+			if !ok {
+				return nil, errors.NewFaultError("Expected Ask from ask lookup")
+			}
+			asks[id] = ask
+		}
+		return actor.MarshalStorage(asks)
+	})
+	if err != nil {
+		return nil, errors.CodeError(err), err
+	}
+	asks, ok := ret.([]byte)
+	if !ok {
+		return nil, 1, fmt.Errorf("expected []bytes to be returned, but got %T instead", ret)
+	}
+	return asks, 0, nil
+}
+
+func keyFromID(askID uint64) string {
+	return strconv.FormatUint(askID, 36)
+}
+func idFromKey(key string) (uint64, error) {
+	return strconv.ParseUint(key, 36, 64)
 }
 
 // CreateMiner creates a new miner with the a pledge of the given amount of sectors. The
@@ -218,6 +330,31 @@ func (sma *Actor) GetTotalStorage(vmctx exec.VMContext) (*big.Int, uint8, error)
 	}
 
 	return count, 0, nil
+}
+
+// GetAsk returns the ask on the orderbook for the given askID.
+func (sma *Actor) GetAsk(vmctx exec.VMContext, askID *big.Int) ([]byte, uint8, error) {
+	var state State
+	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
+		ctx := context.Background()
+		asks, err := actor.LoadLookup(ctx, vmctx.Storage(), state.Asks)
+		if err != nil {
+			return nil, errors.FaultErrorWrapf(err, "could not load lookup for asks with CID: %s", state.Asks)
+		}
+		ask, err := asks.Find(ctx, strconv.FormatUint(askID.Uint64(), 36))
+		if err != nil {
+			return nil, errors.FaultErrorWrapf(err, "could not find ask with askID: %d", askID.Uint64())
+		}
+		return actor.MarshalStorage(ask)
+	})
+	if err != nil {
+		return nil, errors.CodeError(err), err
+	}
+	ask, ok := ret.([]byte)
+	if !ok {
+		return nil, 1, fmt.Errorf("expected []bytes to be returned, but got %T instead", ret)
+	}
+	return ask, 0, nil
 }
 
 // MinimumCollateral returns the minimum required amount of collateral for a given pledge
