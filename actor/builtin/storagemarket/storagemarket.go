@@ -80,12 +80,6 @@ type Actor struct{}
 type State struct {
 	Miners *cid.Cid
 
-	// Asks is a key value store of ask ids to asks
-	Asks *cid.Cid
-
-	// NextSAskID is the ID that will be assigned to the next ask that is created
-	NextSAskID uint64
-
 	// TotalCommitedStorage is the number of sectors that are currently committed
 	// in the whole network.
 	TotalCommittedStorage *big.Int
@@ -122,10 +116,6 @@ func (sma *Actor) Exports() exec.Exports {
 }
 
 var storageMarketExports = exec.Exports{
-	"addAsk": &exec.FunctionSignature{
-		Params: []abi.Type{abi.AttoFIL, abi.BytesAmount},
-		Return: []abi.Type{abi.Integer},
-	},
 	"createMiner": &exec.FunctionSignature{
 		Params: []abi.Type{abi.Integer, abi.Bytes, abi.PeerID},
 		Return: []abi.Type{abi.Address},
@@ -138,95 +128,6 @@ var storageMarketExports = exec.Exports{
 		Params: []abi.Type{},
 		Return: []abi.Type{abi.Integer},
 	},
-	"getAsk": &exec.FunctionSignature{
-		Params: []abi.Type{abi.Integer},
-		Return: []abi.Type{abi.Bytes},
-	},
-	"getAllAsks": &exec.FunctionSignature{
-		Params: []abi.Type{},
-		Return: []abi.Type{abi.Bytes},
-	},
-}
-
-// AddAsk adds an ask order to the orderbook. Must be called by a miner created
-// by this storage market actor.
-func (sma *Actor) AddAsk(vmctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (*big.Int, uint8, error) {
-	var state State
-	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
-		// method must be called by a miner that was created by this storage market actor.
-		miner := vmctx.Message().From
-		ctx := context.Background()
-		miners, err := actor.LoadLookup(ctx, vmctx.Storage(), state.Miners)
-		if err != nil {
-			return nil, errors.FaultErrorWrapf(err, "could not load lookup for miner with CID: %s", state.Miners)
-		}
-		_, err = miners.Find(ctx, miner.String())
-		if err != nil {
-			if err == hamt.ErrNotFound {
-				return nil, Errors[ErrUnknownMiner]
-			}
-			return nil, errors.FaultErrorWrapf(err, "could lookup miner with address: %s", miner)
-		}
-		askID := state.NextSAskID
-		state.NextSAskID++
-		state.Asks, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Asks, keyFromID(askID), &Ask{
-			ID:    askID,
-			Price: price,
-			Size:  size,
-			Owner: miner,
-		})
-		if err != nil {
-			return nil, errors.FaultErrorWrapf(err, "could not set ask with askID, %d, into lookup", askID)
-		}
-		return big.NewInt(0).SetUint64(askID), nil
-	})
-	if err != nil {
-		return nil, errors.CodeError(err), err
-	}
-	askID, ok := ret.(*big.Int)
-	if !ok {
-		return nil, 1, errors.NewRevertErrorf("expected *big.Int to be returned, but got %T instead", ret)
-	}
-	return askID, 0, nil
-}
-
-// GetAllAsks returns all asks on the orderbook.
-// TODO limit number of results
-func (sma *Actor) GetAllAsks(vmctx exec.VMContext) ([]byte, uint8, error) {
-	var state State
-	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
-		ctx := context.Background()
-		askLookup, err := actor.LoadTypedLookup(ctx, vmctx.Storage(), state.Asks, &Ask{})
-		if err != nil {
-			return nil, errors.FaultErrorWrapf(err, "could not load lookup for asks with CID: %s", state.Asks)
-		}
-		askValues, err := askLookup.Values(ctx)
-		if err != nil {
-			return nil, errors.FaultErrorWrap(err, "could not retrieve ask values from storage market")
-		}
-		asks := AskSet{}
-		// translate kvs to AskSet.
-		for _, kv := range askValues {
-			id, err := idFromKey(kv.Key)
-			if err != nil {
-				return nil, errors.FaultErrorWrap(err, "Invalid key in orderbook.asks")
-			}
-			ask, ok := kv.Value.(*Ask)
-			if !ok {
-				return nil, errors.NewFaultError("Expected Ask from ask lookup")
-			}
-			asks[id] = ask
-		}
-		return actor.MarshalStorage(asks)
-	})
-	if err != nil {
-		return nil, errors.CodeError(err), err
-	}
-	asks, ok := ret.([]byte)
-	if !ok {
-		return nil, 1, fmt.Errorf("expected []bytes to be returned, but got %T instead", ret)
-	}
-	return asks, 0, nil
 }
 
 func keyFromID(askID uint64) string {
@@ -330,31 +231,6 @@ func (sma *Actor) GetTotalStorage(vmctx exec.VMContext) (*big.Int, uint8, error)
 	}
 
 	return count, 0, nil
-}
-
-// GetAsk returns the ask on the orderbook for the given askID.
-func (sma *Actor) GetAsk(vmctx exec.VMContext, askID *big.Int) ([]byte, uint8, error) {
-	var state State
-	ret, err := actor.WithState(vmctx, &state, func() (interface{}, error) {
-		ctx := context.Background()
-		asks, err := actor.LoadLookup(ctx, vmctx.Storage(), state.Asks)
-		if err != nil {
-			return nil, errors.FaultErrorWrapf(err, "could not load lookup for asks with CID: %s", state.Asks)
-		}
-		ask, err := asks.Find(ctx, strconv.FormatUint(askID.Uint64(), 36))
-		if err != nil {
-			return nil, errors.FaultErrorWrapf(err, "could not find ask with askID: %d", askID.Uint64())
-		}
-		return actor.MarshalStorage(ask)
-	})
-	if err != nil {
-		return nil, errors.CodeError(err), err
-	}
-	ask, ok := ret.([]byte)
-	if !ok {
-		return nil, 1, fmt.Errorf("expected []bytes to be returned, but got %T instead", ret)
-	}
-	return ask, 0, nil
 }
 
 // MinimumCollateral returns the minimum required amount of collateral for a given pledge

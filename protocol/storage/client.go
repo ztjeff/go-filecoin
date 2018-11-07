@@ -3,26 +3,30 @@ package storage
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"gx/ipfs/QmPMtD39NN63AEUNghk1LFQcTLcCmYL8MtRzdv8BRUsC4Z/go-libp2p-host"
-	bserv "gx/ipfs/QmTfTKeBhTLjSjxXQsjkF2b1DfZmYEMnknGE2y2gX57C6v/go-blockservice"
+	cbor "gx/ipfs/QmV6BQ6fFCf9eFHDuRxvguvqfKLZtZrxthgZvDfRCs4tMN/go-ipld-cbor"
 	"gx/ipfs/QmVmDhyTTUcQXFD1rRQ64fGLMSAoaQvNH3hwuaCFAPq2hy/errors"
+	ipld "gx/ipfs/QmX5CsuHyVZeTLxgRSYkgLSDQKb9UjE8xnhQzCEJWWWFsC/go-ipld-format"
 	cid "gx/ipfs/QmZFbDTY9jfSBms2MchvYM9oYRbAF19K7Pby47yDBfpPrb/go-cid"
 	"gx/ipfs/QmbXRda5H2K3MSQyWWxTMtd8DWuguEBUCe6hpxfXVpFUGj/go-multistream"
-	dag "gx/ipfs/QmeLG6jF1xvEmHca5Vy4q4EdQWp8Xq9S6EPyZrN9wvSRLC/go-merkledag"
 
+	"github.com/filecoin-project/go-filecoin/abi"
+	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/address"
 	cbu "github.com/filecoin-project/go-filecoin/cborutil"
 	"github.com/filecoin-project/go-filecoin/lookup"
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
-// TODO: better name
+// TODO: this really should not be an interface fulfilled by the node.
 type clientNode interface {
-	BlockService() bserv.BlockService
+	GetFileSize(*cid.Cid) (uint64, error)
 	Host() host.Host
 	Lookup() lookup.PeerLookupService
+	GetAskPrice(ctx context.Context, miner address.Address, askid uint64) (*types.AttoFIL, error)
 }
 
 // Client is used to make deals directly with storage miners.
@@ -48,12 +52,20 @@ func NewClient(nd clientNode) *Client {
 }
 
 // ProposeDeal is
-func (smc *Client) ProposeDeal(ctx context.Context, miner address.Address, data *cid.Cid, duration uint64, price *types.AttoFIL) (*DealResponse, error) {
-	size, err := getFileSize(ctx, data, dag.NewDAGService(smc.node.BlockService()))
+func (smc *Client) ProposeDeal(ctx context.Context, miner address.Address, data *cid.Cid, askId uint64, duration uint64) (*DealResponse, error) {
+	size, err := smc.node.GetFileSize(data)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to determine the size of the data")
 	}
 
+	price, err := smc.node.GetAskPrice(ctx, miner, askId)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ask price")
+	}
+
+	// TODO: it probably makes sense to just send the ask ID to the miner,
+	// instead of just using it for price lookup. This might make it easier for
+	// the miners acceptance logic
 	proposal := &DealProposal{
 		PieceRef:   data,
 		Size:       types.NewBytesAmount(size),
@@ -169,4 +181,43 @@ func (smc *Client) QueryDeal(ctx context.Context, proposalCid *cid.Cid) (*DealRe
 	}
 
 	return &resp, nil
+}
+
+type ClientNodeImpl struct {
+	Dserv     ipld.DAGService
+	HostObj   host.Host
+	LookupObj lookup.PeerLookupService
+	QueryFn   func(context.Context, address.Address, string, []byte, *address.Address) ([][]byte, uint8, error)
+}
+
+func (cni *ClientNodeImpl) GetFileSize(ctx context.Context, c *cid.Cid) (uint64, error) {
+	return getFileSize(ctx, c, cni.Dserv)
+}
+
+func (cni *ClientNodeImpl) Host() host.Host {
+	return cni.HostObj
+}
+
+func (cni *ClientNodeImpl) Lookup() lookup.PeerLookupService {
+	return cni.LookupObj
+}
+
+func (cni *ClientNodeImpl) GetAskPrice(ctx context.Context, maddr address.Address, askid uint64) (*types.AttoFIL, error) {
+	args, err := abi.ToEncodedValues(big.NewInt(0).SetUint64(askid))
+	if err != nil {
+		return nil, err
+	}
+
+	ret, _, err := cni.QueryFn(ctx, maddr, "getAsk", args, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: this makes it hard to check if the returned ask was 'null'
+	var ask miner.Ask
+	if err := cbor.DecodeInto(ret[0], &ask); err != nil {
+		return nil, err
+	}
+
+	return ask.Price, nil
 }

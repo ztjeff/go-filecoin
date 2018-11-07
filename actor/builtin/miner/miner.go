@@ -19,6 +19,7 @@ import (
 
 func init() {
 	cbor.RegisterCborType(State{})
+	cbor.RegisterCborType(Ask{})
 	cbor.RegisterCborType(Commitments{})
 }
 
@@ -35,10 +36,6 @@ const ProofLength = 192
 // TODO: what is an actual workable value? currently set very high to avoid race conditions in test.
 // https://github.com/filecoin-project/go-filecoin/issues/966
 var ProvingPeriodBlocks = types.NewBlockHeight(20000)
-
-// SectorSize is the amount of bytes, in a single sector.
-// TODO: derive from config and/or from sector_builder
-var SectorSize = types.NewBytesAmount(1016 * 1024 * 1024)
 
 const (
 	// ErrPublicKeyTooBig indicates an invalid public key.
@@ -71,6 +68,12 @@ var Errors = map[uint8]error{
 // Actor is the miner actor.
 type Actor struct{}
 
+type Ask struct {
+	Price  *types.AttoFIL
+	Expiry *types.BlockHeight
+	ID     *big.Int
+}
+
 // State is the miner actors storage.
 type State struct {
 	Owner address.Address
@@ -87,6 +90,10 @@ type State struct {
 	// Collateral is the total amount of filecoin being held as collateral for
 	// the miners pledge.
 	Collateral *types.AttoFIL
+
+	// Asks is the set of asks this miner has open
+	Asks  []*Ask
+	AskID *big.Int
 
 	// Sectors maps sectorID to commR and commD, for all sectors this miner has committed.
 	LastUsedSectorID uint64
@@ -154,8 +161,16 @@ var _ exec.ExecutableActor = (*Actor)(nil)
 
 var minerExports = exec.Exports{
 	"addAsk": &exec.FunctionSignature{
-		Params: []abi.Type{abi.AttoFIL, abi.BytesAmount},
+		Params: []abi.Type{abi.AttoFIL, abi.Integer},
 		Return: []abi.Type{abi.Integer},
+	},
+	"getAsks": &exec.FunctionSignature{
+		Params: nil,
+		Return: []abi.Type{abi.Bytes},
+	},
+	"getAsk": &exec.FunctionSignature{
+		Params: []abi.Type{abi.Integer},
+		Return: []abi.Type{abi.Bytes},
 	},
 	"getOwner": &exec.FunctionSignature{
 		Params: nil,
@@ -201,41 +216,104 @@ func (ma *Actor) Exports() exec.Exports {
 }
 
 // AddAsk adds an ask via this miner to the storage markets orderbook.
-func (ma *Actor) AddAsk(ctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) (*big.Int, uint8,
+func (ma *Actor) AddAsk(ctx exec.VMContext, price *types.AttoFIL, expiry *big.Int) (*big.Int, uint8,
 	error) {
 	var state State
 	out, err := actor.WithState(ctx, &state, func() (interface{}, error) {
 		if ctx.Message().From != state.Owner {
 			return nil, Errors[ErrCallerUnauthorized]
 		}
-		// compute locked storage + new ask
-		total := state.LockedStorage.Add(size)
-		if total.GreaterThan(SectorSize.Mul(types.NewBytesAmount(state.PledgeSectors.Uint64()))) {
-			return nil, Errors[ErrInsufficientPledge]
+
+		id := (&big.Int{}).Set(state.AskID)
+		state.AskID = state.AskID.Add(state.AskID, big.NewInt(1))
+
+		// filter out expired asks
+		asks := state.Asks
+		state.Asks = state.Asks[:0]
+		for _, a := range asks {
+			if ctx.BlockHeight().LessThan(a.Expiry) {
+				state.Asks = append(state.Asks, a)
+			}
 		}
-		state.LockedStorage = total
-		// TODO: kinda feels weird that I can't get a real type back here
-		out, ret, err := ctx.Send(address.StorageMarketAddress, "addAsk", nil, []interface{}{price, size})
-		if err != nil {
-			return nil, err
+
+		if !expiry.IsUint64() {
+			return nil, errors.NewRevertError("expiry was invalid")
 		}
-		askID, err := abi.Deserialize(out[0], abi.Integer)
-		if err != nil {
-			return nil, errors.FaultErrorWrap(err, "error deserializing")
-		}
-		if ret != 0 {
-			return nil, Errors[ErrStoragemarketCallFailed]
-		}
-		return askID.Val, nil
+		expiryBH := types.NewBlockHeight(expiry.Uint64())
+
+		state.Asks = append(state.Asks, &Ask{
+			Price:  price,
+			Expiry: ctx.BlockHeight().Add(expiryBH),
+			ID:     id,
+		})
+
+		return id, nil
 	})
 	if err != nil {
 		return nil, errors.CodeError(err), err
 	}
+
 	askID, ok := out.(*big.Int)
 	if !ok {
 		return nil, 1, errors.NewRevertErrorf("expected an Integer return value from call, but got %T instead", out)
 	}
+
 	return askID, 0, nil
+}
+
+// GetAsks returns all the asks for this miner. (TODO: this isnt a great function signature, it returns the asks in a
+// serialized array. Consider doing this some other way)
+func (ma *Actor) GetAsks(ctx exec.VMContext, price *types.AttoFIL, size *types.BytesAmount) ([]byte, uint8, error) {
+	var state State
+	out, err := actor.WithState(ctx, &state, func() (interface{}, error) {
+		out, err := cbor.DumpObject(state.Asks)
+		if err != nil {
+			return nil, err
+		}
+
+		return out, nil
+	})
+	if err != nil {
+		return nil, errors.CodeError(err), err
+	}
+
+	asks, ok := out.([]byte)
+	if !ok {
+		return nil, 1, errors.NewRevertErrorf("expected a Bytes return value from call, but got %T instead", out)
+	}
+
+	return asks, 0, nil
+}
+
+// GetAsk returns an ask by ID
+func (ma *Actor) GetAsk(ctx exec.VMContext, askid *big.Int) ([]byte, uint8, error) {
+	var state State
+	out, err := actor.WithState(ctx, &state, func() (interface{}, error) {
+		var ask *Ask
+		for _, a := range state.Asks {
+			if a.ID.Cmp(askid) == 0 {
+				ask = a
+				break
+			}
+		}
+
+		out, err := cbor.DumpObject(ask)
+		if err != nil {
+			return nil, err
+		}
+
+		return out, nil
+	})
+	if err != nil {
+		return nil, errors.CodeError(err), err
+	}
+
+	ask, ok := out.([]byte)
+	if !ok {
+		return nil, 1, errors.NewRevertErrorf("expected a Bytes return value from call, but got %T instead", out)
+	}
+
+	return ask, 0, nil
 }
 
 // GetOwner returns the miners owner.

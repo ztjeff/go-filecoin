@@ -10,6 +10,7 @@ import (
 	cid "gx/ipfs/QmZFbDTY9jfSBms2MchvYM9oYRbAF19K7Pby47yDBfpPrb/go-cid"
 
 	"github.com/filecoin-project/go-filecoin/address"
+	"github.com/filecoin-project/go-filecoin/api"
 	"github.com/filecoin-project/go-filecoin/protocol/storage"
 	"github.com/filecoin-project/go-filecoin/types"
 )
@@ -23,6 +24,7 @@ var clientCmd = &cmds.Command{
 		"import":               clientImportDataCmd,
 		"propose-storage-deal": clientProposeStorageDealCmd,
 		"query-storage-deal":   clientQueryStorageDealCmd,
+		"list-asks":            clientListAsksCmd,
 	},
 }
 
@@ -169,6 +171,34 @@ var clientQueryStorageDealCmd = &cmds.Command{
 		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, resp *storage.DealResponse) error {
 			fmt.Fprintf(w, "Status: %s\n", resp.State.String()) // nolint: errcheck
 			fmt.Fprintf(w, "Message: %s\n", resp.Message)       // nolint: errcheck
+			return nil
+		}),
+	},
+}
+
+var clientListAsksCmd = &cmds.Command{
+	Helptext: cmdkit.HelpText{
+		Tagline: "list all asks in the storage market",
+	},
+	Run: func(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) {
+		asksCh, err := GetAPI(env).Client().ListAsks(req.Context)
+		if err != nil {
+			re.SetError(err, cmdkit.ErrNormal)
+			return
+		}
+
+		for a := range asksCh {
+			if a.Error != nil {
+				re.SetError(err, cmdkit.ErrNormal)
+				return
+			}
+			re.Emit(a) // nolint: errcheck
+		}
+	},
+	Type: api.Ask{},
+	Encoders: cmds.EncoderMap{
+		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, ask *api.Ask) error {
+			fmt.Fprintln(w, "%s %.3d %s %s\n", ask.Miner, ask.ID, ask.Price, ask.Expiry)
 			return nil
 		}),
 	},

@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"strconv"
 
 	"gx/ipfs/QmPTfgFTo9PFr1PvPKyKoeMgBvYPh6cX3aDP7DHKVbnCbi/go-ipfs-cmds"
@@ -142,8 +143,8 @@ var minerAddAskCmd = &cmds.Command{
 	},
 	Arguments: []cmdkit.Argument{
 		cmdkit.StringArg("miner", true, false, "the address of the miner owning the ask"),
-		cmdkit.StringArg("size", true, false, "size in bytes of the ask"),
 		cmdkit.StringArg("price", true, false, "the price of the ask"),
+		cmdkit.StringArg("expiry", true, false, "how long this ask is valid for, in blocks"),
 	},
 	Options: []cmdkit.Option{
 		cmdkit.StringOption("from", "address to send the ask from"),
@@ -154,23 +155,27 @@ var minerAddAskCmd = &cmds.Command{
 			re.SetError(err, cmdkit.ErrNormal)
 			return
 		}
+
 		minerAddr, err := address.NewFromString(req.Arguments[0])
 		if err != nil {
 			err = errors.Wrap(err, "invalid miner address")
 			re.SetError(err, cmdkit.ErrNormal)
 			return
 		}
-		size, ok := types.NewBytesAmountFromString(req.Arguments[1], 10)
-		if !ok {
-			re.SetError(ErrInvalidSize, cmdkit.ErrNormal)
-			return
-		}
-		price, ok := types.NewAttoFILFromFILString(req.Arguments[2])
+
+		price, ok := types.NewAttoFILFromFILString(req.Arguments[1])
 		if !ok {
 			re.SetError(ErrInvalidPrice, cmdkit.ErrNormal)
 			return
 		}
-		c, err := GetAPI(env).Miner().AddAsk(req.Context, fromAddr, minerAddr, size, price)
+
+		expiry, ok := big.NewInt(0).SetString(req.Arguments[2], 10)
+		if !ok {
+			re.SetError("expiry must be a valid integer", cmdkit.ErrNormal)
+			return
+		}
+
+		c, err := GetAPI(env).Miner().AddAsk(req.Context, fromAddr, minerAddr, price, expiry)
 		if err != nil {
 			re.SetError(err, cmdkit.ErrNormal)
 			return

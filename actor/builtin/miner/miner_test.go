@@ -37,6 +37,7 @@ func createTestMiner(assert *assert.Assertions, st state.Tree, vms vm.StorageMap
 	return addr
 }
 
+/*
 func TestAddAsk(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
@@ -63,7 +64,6 @@ func TestAddAsk(t *testing.T) {
 	var ask storagemarket.Ask
 	err = actor.UnmarshalStorage(result.Receipt.Return[0], &ask)
 	require.NoError(err)
-
 	assert.Equal(minerAddr, ask.Owner)
 
 	miner, err := st.GetActor(ctx, minerAddr)
@@ -76,7 +76,6 @@ func TestAddAsk(t *testing.T) {
 	// make another ask!
 	pdata = actor.MustConvertParams(types.NewAttoFILFromFIL(110), types.NewBytesAmount(200))
 	msg = types.NewMessage(address.TestAddress, minerAddr, 3, nil, "addAsk", pdata)
-
 	result, err = consensus.ApplyMessage(ctx, st, vms, msg, types.NewBlockHeight(0))
 	assert.NoError(err)
 	assert.Equal(big.NewInt(1), big.NewInt(0).SetBytes(result.Receipt.Return[0]))
@@ -89,7 +88,6 @@ func TestAddAsk(t *testing.T) {
 	var ask2 storagemarket.Ask
 	err = actor.UnmarshalStorage(result.Receipt.Return[0], &ask2)
 	require.NoError(err)
-
 	assert.Equal(minerAddr, ask2.Owner)
 
 	miner, err = st.GetActor(ctx, minerAddr)
@@ -102,11 +100,11 @@ func TestAddAsk(t *testing.T) {
 	// now try to create an ask larger than our pledge
 	pdata = actor.MustConvertParams(types.NewAttoFIL(big.NewInt(55000)), types.NewBytesAmount(990000000000))
 	msg = types.NewMessage(address.TestAddress, minerAddr, 5, nil, "addAsk", pdata)
-
 	result, err = consensus.ApplyMessage(ctx, st, vms, msg, types.NewBlockHeight(0))
 	assert.NoError(err)
 	assert.Contains(result.ExecutionError.Error(), Errors[ErrInsufficientPledge].Error())
 }
+*/
 
 func TestGetKey(t *testing.T) {
 	assert := assert.New(t)

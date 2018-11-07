@@ -50,14 +50,15 @@ func (api *nodeMiner) UpdatePeerID(ctx context.Context, fromAddr, minerAddr addr
 	)
 }
 
-func (api *nodeMiner) AddAsk(ctx context.Context, fromAddr, minerAddr address.Address, size *types.BytesAmount, price *types.AttoFIL) (*cid.Cid, error) {
+func (api *nodeMiner) AddAsk(ctx context.Context, fromAddr, minerAddr address.Address, price *types.AttoFIL, expiry *big.Int) (*cid.Cid, error) {
 	return api.api.Message().Send(
 		ctx,
 		fromAddr,
 		minerAddr,
 		nil,
 		"addAsk",
-		price, size,
+		price,
+		expiry,
 	)
 }
 
