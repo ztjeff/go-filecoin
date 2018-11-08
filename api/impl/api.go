@@ -26,6 +26,7 @@ type nodeAPI struct {
 	miner           *nodeMiner
 	mining          *nodeMining
 	mpool           *nodeMpool
+	orderbook       *nodeOrderbook
 	paych           *nodePaych
 	ping            *nodePing
 	retrievalClient *nodeRetrievalClient
@@ -58,6 +59,7 @@ func New(node *node.Node) api.API {
 	api.miner = newNodeMiner(api)
 	api.mining = newNodeMining(api)
 	api.mpool = newNodeMpool(api)
+	api.orderbook = newNodeOrderbook(api)
 	api.paych = newNodePaych(api)
 	api.ping = newNodePing(api)
 	api.retrievalClient = newNodeRetrievalClient(api)
@@ -125,6 +127,10 @@ func (api *nodeAPI) Mining() api.Mining {
 
 func (api *nodeAPI) Mpool() api.Mpool {
 	return api.mpool
+}
+
+func (api *nodeAPI) Orderbook() api.Orderbook {
+	return api.orderbook
 }
 
 func (api *nodeAPI) Paych() api.Paych {

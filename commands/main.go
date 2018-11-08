@@ -100,6 +100,7 @@ var rootSubcmdsDaemon = map[string]*cmds.Command{
 	"miner":            minerCmd,
 	"mining":           miningCmd,
 	"mpool":            mpoolCmd,
+	"orderbook":        orderbookCmd,
 	"paych":            paymentChannelCmd,
 	"ping":             pingCmd,
 	"retrieval-client": retrievalClientCmd,
