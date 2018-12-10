@@ -40,6 +40,8 @@ var chainHeadCmd = &cmds.Command{
 	Type: []cid.Cid{},
 }
 
+type ChainLsResult []types.Block
+
 var chainLsCmd = &cmds.Command{
 	Helptext: cmdkit.HelpText{
 		Tagline:          "List blocks in the blockchain",

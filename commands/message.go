@@ -94,6 +94,8 @@ type waitResult struct {
 	Signature *exec.FunctionSignature
 }
 
+type MessageWaitResult waitResult
+
 var msgWaitCmd = &cmds.Command{
 	Helptext: cmdkit.HelpText{
 		Tagline: "Wait for a message to appear in a mined block",

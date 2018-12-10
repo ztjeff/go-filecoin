@@ -185,6 +185,8 @@ format is specified with the --enc flag.
 	},
 }
 
+type ClientListAsksResult api.Ask
+
 var clientListAsksCmd = &cmds.Command{
 	Helptext: cmdkit.HelpText{
 		Tagline: "List all asks in the storage market",

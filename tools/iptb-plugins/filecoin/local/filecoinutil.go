@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
 	"gx/ipfs/QmR8BauakNcBa3RbE4nbQu76PDiJgoQgz8AJdhJuiU4TAw/go-cid"
+	"gx/ipfs/QmVmDhyTTUcQXFD1rRQ64fGLMSAoaQvNH3hwuaCFAPq2hy/errors"
 )
 
 func (l *Localfilecoin) isAlive() (bool, error) {
@@ -58,7 +58,7 @@ func (l *Localfilecoin) env() []string {
 		}
 	}
 
-	return append(envs, filecoinpath)
+	return append(envs, filecoinpath, "FIL_USE_SMALL_SECTORS=true" /*"FILECOIN_PROOFS_FAST_DELAY_SECONDS=1",*/, "GO_FILECOIN_LOG_LEVEL=4")
 }
 
 func (l *Localfilecoin) signalAndWait(p *os.Process, waitch <-chan struct{}, signal os.Signal, t time.Duration) error {
