@@ -133,9 +133,9 @@ const (
 	userFilecoinBootstrap4 string = "/dns4/user.kittyhawk.wtf/tcp/9004/ipfs/QmZRnwmCjyNHgeNDiyT8mXRtGhP6uSzgHtrozc42crmVbg"
 )
 
-// DevnetTestBootstrapAddrs are the dns multiaddrs for the nodes of the filecoin
-// test devnet.
-var DevnetTestBootstrapAddrs = []string{
+// DevnetInfraBootstrapAddrs are the dns multiaddrs for the nodes of the filecoin
+// infra devnet.
+var DevnetInfraBootstrapAddrs = []string{
 	testFilecoinBootstrap0,
 	testFilecoinBootstrap1,
 	testFilecoinBootstrap2,

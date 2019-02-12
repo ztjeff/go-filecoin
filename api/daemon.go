@@ -26,8 +26,8 @@ type DaemonInitConfig struct {
 	PeerKeyFile string
 	// WithMiner, if set, sets the config value for the local miner to this address.
 	WithMiner address.Address
-	// DevnetTest, if set, sets the config to enable bootstrapping to the test devnet.
-	DevnetTest bool
+	// DevnetInfra, if set, sets the config to enable bootstrapping to the infra devnet.
+	DevnetInfra bool
 	// DevnetNightly, if set, sets the config to enable bootstrapping to the nightly devnet.
 	DevnetNightly bool
 	// DevnetUser, if set, sets the config to enable bootstrapping to the user devnet.
@@ -68,10 +68,10 @@ func WithMiner(miner address.Address) DaemonInitOpt {
 	}
 }
 
-// DevnetTest sets the DevnetTest option.
-func DevnetTest(doit bool) DaemonInitOpt {
+// DevnetInfra sets the DevnetInfra option.
+func DevnetInfra(doit bool) DaemonInitOpt {
 	return func(dc *DaemonInitConfig) {
-		dc.DevnetTest = doit
+		dc.DevnetInfra = doit
 	}
 }
 

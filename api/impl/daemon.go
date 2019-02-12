@@ -107,14 +107,14 @@ func (nd *nodeDaemon) Init(ctx context.Context, opts ...api.DaemonInitOpt) error
 		}
 	}
 
-	if cfg.DevnetTest && cfg.DevnetNightly {
-		return fmt.Errorf(`cannot use both "--devnet-test" and "--devnet-nightly" options`)
+	if cfg.DevnetInfra && cfg.DevnetNightly {
+		return fmt.Errorf(`cannot use both "--devnet-infra" and "--devnet-nightly" options`)
 	}
 
 	// Setup devnet test specific config options.
-	if cfg.DevnetTest {
+	if cfg.DevnetInfra {
 		newConfig := rep.Config()
-		newConfig.Bootstrap.Addresses = fixtures.DevnetTestBootstrapAddrs
+		newConfig.Bootstrap.Addresses = fixtures.DevnetInfraBootstrapAddrs
 		newConfig.Bootstrap.MinPeerThreshold = 1
 		newConfig.Bootstrap.Period = "10s"
 		if err := rep.ReplaceConfig(newConfig); err != nil {

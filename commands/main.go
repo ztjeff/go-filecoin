@@ -68,8 +68,8 @@ const (
 	// GenesisFile is the path of file containing archive of genesis block DAG data
 	GenesisFile = "genesisfile"
 
-	// DevnetTest populates config bootstrap addrs with the dns multiaddrs of the test devnet and other test devnet specific bootstrap parameters
-	DevnetTest = "devnet-test"
+	// DevnetInfra populates config bootstrap addrs with the dns multiaddrs of the infra devnet and other infra devnet specific bootstrap parameters
+	DevnetInfra = "devnet-infra"
 
 	// DevnetNightly populates config bootstrap addrs with the dns multiaddrs of the nightly devnet and other nightly devnet specific bootstrap parameters
 	DevnetNightly = "devnet-nightly"

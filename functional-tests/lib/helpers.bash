@@ -59,7 +59,7 @@ function init_devnet_daemon {
             --auto-seal-interval-seconds="${AUTO_SEAL_INTERVAL_SECONDS}" \
             --repodir="$1" \
             --cmdapiaddr=/ip4/127.0.0.1/tcp/"$2" \
-            --devnet-test \
+            --devnet-infra \
             --genesisfile="http://test.kittyhawk.wtf:8020/genesis.car"
    else
         ./go-filecoin init \

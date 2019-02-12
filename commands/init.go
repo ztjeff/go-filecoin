@@ -22,7 +22,7 @@ var initCmd = &cmds.Command{
 		cmdkit.StringOption(WithMiner, "when set, creates a custom genesis block with a pre generated miner account, requires running the daemon using dev mode (--dev)"),
 		cmdkit.StringOption(DefaultAddress, "when set, sets the daemons's default address to the provided address"),
 		cmdkit.UintOption(AutoSealIntervalSeconds, "when set to a number > 0, configures the daemon to check for and seal any staged sectors on an interval.").WithDefault(uint(120)),
-		cmdkit.BoolOption(DevnetTest, "when set, populates config bootstrap addrs with the dns multiaddrs of the test devnet and other test devnet specific bootstrap parameters."),
+		cmdkit.BoolOption(DevnetInfra, "when set, populates config bootstrap addrs with the dns multiaddrs of the infra devnet and other infra devnet specific bootstrap parameters."),
 		cmdkit.BoolOption(DevnetNightly, "when set, populates config bootstrap addrs with the dns multiaddrs of the nightly devnet and other nightly devnet specific bootstrap parameters"),
 		cmdkit.BoolOption(DevnetUser, "when set, populates config bootstrap addrs with the dns multiaddrs of the user devnet and other user devnet specific bootstrap parameters"),
 	},
@@ -35,7 +35,7 @@ var initCmd = &cmds.Command{
 		genesisFile, _ := req.Options[GenesisFile].(string)
 		peerKeyFile, _ := req.Options[PeerKeyFile].(string)
 		autoSealIntervalSeconds, _ := req.Options[AutoSealIntervalSeconds].(uint)
-		devnetTest, _ := req.Options[DevnetTest].(bool)
+		devnetTest, _ := req.Options[DevnetInfra].(bool)
 		devnetNightly, _ := req.Options[DevnetNightly].(bool)
 		devnetUser, _ := req.Options[DevnetUser].(bool)
 
@@ -63,7 +63,7 @@ var initCmd = &cmds.Command{
 			api.GenesisFile(genesisFile),
 			api.PeerKeyFile(peerKeyFile),
 			api.WithMiner(withMiner),
-			api.DevnetTest(devnetTest),
+			api.DevnetInfra(devnetTest),
 			api.DevnetNightly(devnetNightly),
 			api.DevnetUser(devnetUser),
 			api.AutoSealIntervalSeconds(autoSealIntervalSeconds),
