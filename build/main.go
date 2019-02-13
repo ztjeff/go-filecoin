@@ -108,6 +108,7 @@ func runCapture(name string) string {
 // out.
 func hydrateParamCache() []command {
 	return []command{
+		cmdWithDir("./proofs/misc/", "../bin/paramfetch fetch --all"),
 		cmd("./proofs/bin/paramcache"),
 	}
 }
