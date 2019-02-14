@@ -1,7 +1,12 @@
 FROM golang:1.11.1-stretch AS builder
 MAINTAINER Filecoin Dev Team
 
-RUN apt-get update && apt-get install -y ca-certificates file sudo clang
+ARG GH_TOKEN
+ENV GITHUB_TOKEN=$GH_TOKEN
+ARG USE_PRECOMPILED_RUST_PROOFS
+ENV FILECOIN_USE_PRECOMPILED_RUST_PROOFS=$USE_PRECOMPILED_RUST_PROOFS
+
+RUN apt-get update && apt-get install -y ca-certificates file sudo clang jq
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y
 
 # This docker file is a modified version of
@@ -9,7 +14,6 @@ RUN curl -sSf https://sh.rustup.rs | sh -s -- -y
 # Thanks Lars :)
 
 ENV SRC_DIR /go/src/github.com/filecoin-project/go-filecoin
-
 COPY . $SRC_DIR
 
 # Build the thing.

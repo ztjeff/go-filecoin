@@ -298,7 +298,7 @@ jobs:
       - run:
           name: build an image of all binaries
           command: |
-            docker build -t filecoin:all --target=builder .
+            docker build --build-arg GH_TOKEN=$GITHUB_TOKEN --build-arg USE_PRECOMPILED_RUST_PROOFS=yes -t filecoin:all --target=builder  .
           no_output_timeout: 20m
 
       - run:
@@ -402,14 +402,14 @@ workflows:
   version: 2
   test_all:
     jobs:
-      - build_linux
-      - build_docker_img:
-          requires:
-            - build_linux
-          filters:
-            branches:
-              only:
-                - master
+      #- build_linux
+      - build_docker_img
+          #requires:
+          #  - build_linux
+          # filters:
+          #   branches:
+          #     only:
+          #       - master
 
   build_nightly_osx:
     triggers:
