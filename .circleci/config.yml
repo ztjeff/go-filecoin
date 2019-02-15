@@ -299,7 +299,7 @@ jobs:
           name: build an image of all binaries
           command: |
             docker build --build-arg GH_TOKEN=$GITHUB_TOKEN --build-arg USE_PRECOMPILED_RUST_PROOFS=yes -t filecoin:all --target=builder  .
-          no_output_timeout: 40m
+          no_output_timeout: 80m
 
       - run:
           name: build & push image - filecoin
