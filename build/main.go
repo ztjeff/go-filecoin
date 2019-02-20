@@ -108,6 +108,7 @@ func runCapture(name string) string {
 // out.
 func hydrateParamCache() []command {
 	return []command{
+    cmd("mkdir -p $FILECOIN_PARAMETER_CACHE"),
 		cmd("./proofs/bin/paramfetch fetch --all --json=./proofs/misc/parameters.json"),
 		cmd("./proofs/bin/paramcache"),
 		cmd("./scripts/copy-groth-params.sh"),
