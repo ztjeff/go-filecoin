@@ -247,6 +247,7 @@ jobs:
           paths:
             - "filecoin-Linux.tar.gz"
             - "gengen/gengen"
+            - "fixtures"
 
   publish_release:
     docker:
@@ -334,10 +335,6 @@ jobs:
 
       # Pull in all submodules (inc. rust-fil-proofs)
       - run: git submodule update --init
-
-      - run:
-          name: Generate fixtures
-          command: go build -o ./gengen/gengen ./gengen
 
       - run:
           name: build an image of all binaries
