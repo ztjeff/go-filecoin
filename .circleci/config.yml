@@ -160,6 +160,9 @@ jobs:
     parameters:
       <<: *sector_builder_tests_param
     steps:
+      # trigger a failure for testing purposes
+      - run:
+        command: "exit 1"
       - run:
           name: Configure environment variables
           command: |
