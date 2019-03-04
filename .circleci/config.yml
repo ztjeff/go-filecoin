@@ -452,6 +452,13 @@ jobs:
           command: |
             sudo apt-get install -y curl jq
             curl -X POST --header "Content-Type: application/json" -d '{"branch":"filecoin-usernet"}' https://circleci.com/api/v1.1/project/github/filecoin-project/go-filecoin-infra/build?circle-token=$CIRCLE_API_TOKEN
+
+experimental:
+  notify:
+    branches:
+      only:
+        - master
+
 workflows:
   version: 2
   test_all:
