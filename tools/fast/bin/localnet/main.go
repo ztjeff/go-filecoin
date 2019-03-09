@@ -47,6 +47,8 @@ var (
 	smallSectors = true
 
 	sectorSize uint64
+
+	exitcode int
 )
 
 func init() {
@@ -78,23 +80,31 @@ func init() {
 func main() {
 	ctx := context.Background()
 
+	defer func() {
+		os.Exit(exitcode)
+	}()
+
 	if len(workdir) == 0 {
 		workdir, err = ioutil.TempDir("", "localnet")
 		if err != nil {
-			handleError(err)
-			os.Exit(1)
+			exitcode = handleError(err)
+			return
 		}
 	}
 
 	if ok, err := isEmpty(workdir); !ok {
-		handleError(err, "workdir is not empty;")
-		os.Exit(1)
+		if err == nil {
+			err = fmt.Errorf("workdir is not empty")
+		}
+
+		exitcode = handleError(err, "fail when checking workdir;")
+		return
 	}
 
 	env, err := fast.NewEnvironmentMemoryGenesis(&balance, workdir)
 	if err != nil {
-		handleError(err)
-		os.Exit(1)
+		exitcode = handleError(err)
+		return
 	}
 
 	// Defer the teardown, this will shuteverything down for us
@@ -102,8 +112,8 @@ func main() {
 
 	binpath, err := testhelpers.GetFilecoinBinary()
 	if err != nil {
-		handleError(err, "no binary was found, please build go-filecoin;")
-		os.Exit(1)
+		exitcode = handleError(err, "no binary was found, please build go-filecoin;")
+		return
 	}
 
 	// Setup localfilecoin plugin options
@@ -116,8 +126,8 @@ func main() {
 	genesisURI := env.GenesisCar()
 	genesisMiner, err := env.GenesisMiner()
 	if err != nil {
-		handleError(err, "failed to retrieve miner information from genesis;")
-		os.Exit(1)
+		exitcode = handleError(err, "failed to retrieve miner information from genesis;")
+		return
 	}
 
 	fastenvOpts := fast.EnvironmentOpts{
@@ -129,14 +139,14 @@ func main() {
 	// define with power in the genesis block, and the prefunnded wallet
 	genesis, err := env.NewProcess(ctx, lpfc.PluginName, options, fastenvOpts)
 	if err != nil {
-		handleError(err, "failed to create genesis process;")
-		os.Exit(1)
+		exitcode = handleError(err, "failed to create genesis process;")
+		return
 	}
 
 	err = series.SetupGenesisNode(ctx, genesis, genesisMiner.Address, files.NewReaderFile(genesisMiner.Owner))
 	if err != nil {
-		handleError(err, "failed series.SetupGenesisNode;")
-		os.Exit(1)
+		exitcode = handleError(err, "failed series.SetupGenesisNode;")
+		return
 	}
 
 	// Create the processes that we will use to become miners
@@ -144,8 +154,8 @@ func main() {
 	for i := 0; i < count; i++ {
 		miner, err := env.NewProcess(ctx, lpfc.PluginName, options, fastenvOpts)
 		if err != nil {
-			handleError(err, "failed to create miner process;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed to create miner process;")
+			return
 		}
 
 		miners = append(miners, miner)
@@ -178,20 +188,20 @@ func main() {
 	for _, miner := range miners {
 		err = series.InitAndStart(ctx, miner)
 		if err != nil {
-			handleError(err, "failed series.InitAndStart;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.InitAndStart;")
+			return
 		}
 
 		err = series.Connect(ctx, genesis, miner)
 		if err != nil {
-			handleError(err, "failed series.Connect;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.Connect;")
+			return
 		}
 
 		err = series.SendFilecoinDefaults(ctx, genesis, miner, fil)
 		if err != nil {
-			handleError(err, "failed series.SendFilecoinDefaults;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.SendFilecoinDefaults;")
+			return
 		}
 
 		pledge := uint64(10)                    // sectors
@@ -201,8 +211,8 @@ func main() {
 
 		ask, err := series.CreateMinerWithAsk(ctx, miner, pledge, collateral, price, expiry)
 		if err != nil {
-			handleError(err, "failed series.CreateMinerWithAsk;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.CreateMinerWithAsk;")
+			return
 		}
 
 		var data bytes.Buffer
@@ -210,8 +220,8 @@ func main() {
 		dataReader = io.TeeReader(dataReader, &data)
 		_, deal, err := series.ImportAndStore(ctx, genesis, ask, files.NewReaderFile(dataReader))
 		if err != nil {
-			handleError(err, "failed series.ImportAndStore;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.ImportAndStore;")
+			return
 		}
 
 		deals = append(deals, deal)
@@ -221,45 +231,45 @@ func main() {
 	for _, deal := range deals {
 		err = series.WaitForDealState(ctx, genesis, deal, storagedeal.Posted)
 		if err != nil {
-			handleError(err, "failed series.WaitForDealState;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.WaitForDealState;")
+			return
 		}
 	}
 
 	if shell {
 		client, err := env.NewProcess(ctx, lpfc.PluginName, options, fastenvOpts)
 		if err != nil {
-			handleError(err, "failed to create client process;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed to create client process;")
+			return
 		}
 
 		err = series.InitAndStart(ctx, client)
 		if err != nil {
-			handleError(err, "failed series.InitAndStart;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.InitAndStart;")
+			return
 		}
 
 		err = series.Connect(ctx, genesis, client)
 		if err != nil {
-			handleError(err, "failed series.Connect;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.Connect;")
+			return
 		}
 
 		err = series.SendFilecoinDefaults(ctx, genesis, client, fil)
 		if err != nil {
-			handleError(err, "failed series.SendFilecoinDefaults;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed series.SendFilecoinDefaults;")
+			return
 		}
 
 		interval, err := client.StartLogCapture()
 		if err != nil {
-			handleError(err, "failed to start log capture;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed to start log capture;")
+			return
 		}
 
 		if err := client.Shell(); err != nil {
-			handleError(err, "failed to run client shell;")
-			os.Exit(1)
+			exitcode = handleError(err, "failed to run client shell;")
+			return
 		}
 
 		interval.Stop()
@@ -279,9 +289,9 @@ func main() {
 	<-signals
 }
 
-func handleError(err error, msg ...string) {
+func handleError(err error, msg ...string) int {
 	if err == nil {
-		return
+		return 0
 	}
 
 	if len(msg) != 0 {
@@ -289,6 +299,8 @@ func handleError(err error, msg ...string) {
 	} else {
 		fmt.Println(err)
 	}
+
+	return 1
 }
 
 // https://stackoverflow.com/a/3070891://stackoverflow.com/a/30708914
