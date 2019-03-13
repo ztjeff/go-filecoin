@@ -57,6 +57,11 @@ const (
 		"beatPeriod": "3s",
 		"reconnectPeriod": "10s",
 		"nickname": ""
+	},
+	"metrics": {
+		"enabled": false,
+		"reportInterval": "3s",
+		"prometheusEndpoint": "/ip4/0.0.0.0/tcp/8888"
 	}
 }`
 )

@@ -24,6 +24,7 @@ type Config struct {
 	Mining    *MiningConfig    `json:"mining"`
 	Wallet    *WalletConfig    `json:"wallet"`
 	Heartbeat *HeartbeatConfig `json:"heartbeat"`
+	Metrics   *MetricsConfig   `json:"metrics"`
 }
 
 // APIConfig holds all configuration options related to the api.
@@ -59,6 +60,7 @@ type DatastoreConfig struct {
 // arguments, and must return either an error or nil depending on whether or not
 // the given key and value are valid. Validators will only be run if a property
 // being set matches the name given in this map.
+// TODO add validators for BeatTarget and PrometheusEndpoint asserting they are valid addresses
 var Validators = map[string]func(string, string) error{
 	"heartbeat.nickname": validateLettersOnly,
 }
@@ -147,6 +149,23 @@ func newDefaultHeartbeatConfig() *HeartbeatConfig {
 	}
 }
 
+type MetricsConfig struct {
+	// Enabled will enable prometheus metrics when true.
+	Enabled bool `json:"enabled"`
+	// ReportInterval represents how frequently filecoin will update its prometheus metrics.
+	ReportInterval string `json:"reportInterval"`
+	// PrometheusEndpoint represents the address filecoin will expose prometheus metrics at.
+	PrometheusEndpoint string `json:"prometheusEndpoint"`
+}
+
+func newDefaultMetricsConfig() *MetricsConfig {
+	return &MetricsConfig{
+		Enabled:            false,
+		ReportInterval:     "3s",
+		PrometheusEndpoint: "/ip4/0.0.0.0/tcp/8888",
+	}
+}
+
 // NewDefaultConfig returns a config object with all the fields filled out to
 // their default values
 func NewDefaultConfig() *Config {
@@ -158,6 +177,7 @@ func NewDefaultConfig() *Config {
 		Mining:    newDefaultMiningConfig(),
 		Wallet:    newDefaultWalletConfig(),
 		Heartbeat: newDefaultHeartbeatConfig(),
+		Metrics:   newDefaultMetricsConfig(),
 	}
 }
 
