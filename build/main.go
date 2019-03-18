@@ -55,6 +55,11 @@ func runCmd(c command) {
 	cmd.Dir = c.dir
 	log.Println(name)
 
+	err := os.Setenv("CGO_ENABLED", "0")
+	if err != nil {
+		panic(err)
+	}
+
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		panic(err)
@@ -276,7 +281,7 @@ func forceBuildFC() {
 
 	runCmd(cmd([]string{
 		"go", "build",
-		"-ldflags", fmt.Sprintf("-X github.com/filecoin-project/go-filecoin/flags.Commit=%s", commit),
+		"-ldflags", fmt.Sprintf("-extldflags \"-static\" -X github.com/filecoin-project/go-filecoin/flags.Commit=%s", commit),
 		"-a", "-v", "-o", "go-filecoin", ".",
 	}...))
 }
@@ -302,7 +307,7 @@ func buildFilecoin() {
 
 	runCmd(cmd([]string{
 		"go", "build",
-		"-ldflags", fmt.Sprintf("-X github.com/filecoin-project/go-filecoin/flags.Commit=%s", commit),
+		"-ldflags", fmt.Sprintf("-extldflags \"-static\" -X github.com/filecoin-project/go-filecoin/flags.Commit=%s", commit),
 		"-v", "-o", "go-filecoin", ".",
 	}...))
 }
