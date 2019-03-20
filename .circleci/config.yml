@@ -595,8 +595,6 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
 
       - build_linux:
@@ -606,8 +604,6 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
       - publish_release:
           requires:
@@ -619,8 +615,6 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
 
   build_nightly_devnet:
@@ -663,8 +657,6 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
 
       - build_faucet_and_genesis:
@@ -676,8 +668,6 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
 
       - build_docker_img:
@@ -691,8 +681,6 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
 
       - trigger_user_devnet_deploy:
@@ -704,6 +692,4 @@ workflows:
                 - /.*/
             tags:
               only:
-                # - /^\d+\.\d+\.\d+$/
-                # @TODO remove the following line and uncomment above after deploy testing complete
                 - /^(testnet\-)*\d+\.\d+\.\d+$/
