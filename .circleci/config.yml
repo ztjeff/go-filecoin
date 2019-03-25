@@ -107,7 +107,7 @@ commands:
           command: |
             sudo apt-get install -y curl
             # FILECOIN_BINARY_VERSION must be set in BASH_ENV of job calling this command
-            curl -d build_parameters[FILECOIN_BINARY_VERSION]=${FILECOIN_BINARY_VERSION} -d build_parameters[CIRCLE_JOB]=<< parameters.job >> https://circleci.com/api/v1.1/project/github/filecoin-project/go-filecoin-infra/tree/<< parameters.branch >>?circle-token=$CIRCLE_API_TOKEN
+            echo "curl -d build_parameters[FILECOIN_BINARY_VERSION]=${FILECOIN_BINARY_VERSION} -d build_parameters[CIRCLE_JOB]=<< parameters.job >> https://circleci.com/api/v1.1/project/github/filecoin-project/go-filecoin-infra/tree/<< parameters.branch >>?circle-token=<redacted>"
   # updates a badge in https://github.com/filecoin-project/go-filecoin-badges
   # requires Environment Variable FILECOIN_BINARY_VERSION being set
   update_badge:
@@ -129,9 +129,9 @@ commands:
             git clone https://${GITHUB_TOKEN}@github.com/filecoin-project/go-filecoin-badges.git
             cd go-filecoin-badges
             cat << parameters.filename >> | jq --arg FILECOIN_BINARY_VERSION "${FILECOIN_BINARY_VERSION}" -r '.message = $FILECOIN_BINARY_VERSION' | tee << parameters.filename >>
-            git add << parameters.filename >>
-            git commit -m "badge update bot: update << parameters.filename >> to ${FILECOIN_BINARY_VERSION}"
-            git push https://${GITHUB_TOKEN}@github.com/filecoin-project/go-filecoin-badges.git
+            # git add << parameters.filename >>
+            # git commit -m "badge update bot: update << parameters.filename >> to ${FILECOIN_BINARY_VERSION}"
+            # git push https://${GITHUB_TOKEN}@github.com/filecoin-project/go-filecoin-badges.git
 
 jobs:
   build_macos:
@@ -387,7 +387,7 @@ jobs:
       - run:
           name: Publish new release
           command: |
-            ./scripts/publish-release.sh
+            # ./scripts/publish-release.sh
 
   build_faucet_and_genesis:
     docker:
@@ -461,7 +461,7 @@ jobs:
       - run:
           name: build an image of all binaries
           command: |
-            docker build -t filecoin:all --target=base --file Dockerfile.ci.base .
+            # docker build -t filecoin:all --target=base --file Dockerfile.ci.base .
           no_output_timeout: 20m
 
       - when:
@@ -483,25 +483,27 @@ jobs:
           name: build & push image - genesis file server
           command: |
             export SHORT_GIT_SHA=$(echo $CIRCLE_SHA1 | cut -c -6)
-            docker build -f Dockerfile.ci.genesis --label "version=$SHORT_GIT_SHA" -t 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA --cache-from filecoin:all .
-            docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA
-            docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:latest
-            docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:latest
+            # docker build -f Dockerfile.ci.genesis --label "version=$SHORT_GIT_SHA" -t 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA --cache-from filecoin:all .
+            # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA
+            # docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:latest
+            # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:latest
             if [[ ! -z "$FILECOIN_BINARY_VERSION" ]]; then
-              docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:${FILECOIN_BINARY_VERSION}
-              docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:${FILECOIN_BINARY_VERSION}
+              echo
+              # docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:${FILECOIN_BINARY_VERSION}
+              # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-genesis-file-server:${FILECOIN_BINARY_VERSION}
             fi
       - run:
           name: build & push image - faucet
           command: |
             export SHORT_GIT_SHA=$(echo $CIRCLE_SHA1 | cut -c -6)
-            docker build -f Dockerfile.ci.faucet --label "version=$SHORT_GIT_SHA" -t 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA --cache-from filecoin:all .
-            docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA
-            docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:latest
-            docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:latest
+            # docker build -f Dockerfile.ci.faucet --label "version=$SHORT_GIT_SHA" -t 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA --cache-from filecoin:all .
+            # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA
+            # docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:latest
+            # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:latest
             if [[ ! -z "$FILECOIN_BINARY_VERSION" ]]; then
-              docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:${FILECOIN_BINARY_VERSION}
-              docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:${FILECOIN_BINARY_VERSION}
+              echo
+              # docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:${FILECOIN_BINARY_VERSION}
+              # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-faucet:${FILECOIN_BINARY_VERSION}
             fi
       - run:
           name: build & push image - filecoin
@@ -510,13 +512,14 @@ jobs:
             export ARTIFACT_TAG="${CIRCLE_TAG:-$SHORT_GIT_SHA}"
             tar -xf "bundle/filecoin-$ARTIFACT_TAG-Linux.tar.gz"
             mv $HOME/filecoin-proof-parameters ./filecoin-proof-parameters
-            docker build -f Dockerfile.ci.filecoin --label "version=$SHORT_GIT_SHA" -t 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA --cache-from filecoin:all .
-            docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA
-            docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:latest
-            docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:latest
+            # docker build -f Dockerfile.ci.filecoin --label "version=$SHORT_GIT_SHA" -t 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA --cache-from filecoin:all .
+            # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA
+            # docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:latest
+            # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:latest
             if [[ ! -z "$FILECOIN_BINARY_VERSION" ]]; then
-              docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:${FILECOIN_BINARY_VERSION}
-              docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:${FILECOIN_BINARY_VERSION}
+              echo
+              # docker tag 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:$SHORT_GIT_SHA 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:${FILECOIN_BINARY_VERSION}
+              # docker push 657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:${FILECOIN_BINARY_VERSION}
             fi
 
   trigger_nightly_devnet_deploy:
@@ -719,69 +722,69 @@ workflows:
 
   build_test_devnet:
     jobs:
-      - build_macos:
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+      - build_macos
+#          filters:
+#            branches:
+#              ignore:
+#                - /.*/
+#            tags:
+#              only:
+#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
 
-      - build_linux:
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+      - build_linux
+#          filters:
+#            branches:
+#              ignore:
+#                - /.*/
+#            tags:
+#              only:
+#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
 
       - build_faucet_and_genesis:
           requires:
             - build_linux
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#          filters:
+#            branches:
+#              ignore:
+#                - /.*/
+#            tags:
+#              only:
+#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
 
       - publish_release:
           requires:
             - build_linux
             - build_macos
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#          filters:
+#            branches:
+#              ignore:
+#                - /.*/
+#            tags:
+#              only:
+#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
 
       - build_docker_img:
           user_devnet: true
           requires:
             - build_linux
             - build_faucet_and_genesis
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#          filters:
+#            branches:
+#              ignore:
+#                - /.*/
+#            tags:
+#              only:
+#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
 
       - trigger_devnet_deploy:
           test_devnet: true
           network: "test"
           requires:
             - build_docker_img
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#          filters:
+#            branches:
+#              ignore:
+#                - /.*/
+#            tags:
+#              only:
+#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
