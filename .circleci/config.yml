@@ -653,75 +653,6 @@ workflows:
 
   build_user_devnet:
     jobs:
-      - build_macos:
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^\d+\.\d+\.\d+$/
-
-      - build_linux:
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^\d+\.\d+\.\d+$/
-
-      - build_faucet_and_genesis:
-          requires:
-            - build_linux
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^\d+\.\d+\.\d+$/
-
-      - publish_release:
-          requires:
-            - build_linux
-            - build_macos
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^\d+\.\d+\.\d+$/
-
-      - build_docker_img:
-          user_devnet: true
-          requires:
-            - build_linux
-            - build_faucet_and_genesis
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^\d+\.\d+\.\d+$/
-
-      - trigger_devnet_deploy:
-          user_devnet: true
-          network: "user"
-          requires:
-            - build_docker_img
-          filters:
-            branches:
-              ignore:
-                - /.*/
-            tags:
-              only:
-                - /^\d+\.\d+\.\d+$/
-
-  build_test_devnet:
-    jobs:
       - build_macos
 #          filters:
 #            branches:
@@ -729,7 +660,7 @@ workflows:
 #                - /.*/
 #            tags:
 #              only:
-#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#                - /^\d+\.\d+\.\d+$/
 
       - build_linux
 #          filters:
@@ -738,7 +669,7 @@ workflows:
 #                - /.*/
 #            tags:
 #              only:
-#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#                - /^\d+\.\d+\.\d+$/
 
       - build_faucet_and_genesis:
           requires:
@@ -749,7 +680,7 @@ workflows:
 #                - /.*/
 #            tags:
 #              only:
-#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#                - /^\d+\.\d+\.\d+$/
 
       - publish_release:
           requires:
@@ -761,7 +692,7 @@ workflows:
 #                - /.*/
 #            tags:
 #              only:
-#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#                - /^\d+\.\d+\.\d+$/
 
       - build_docker_img:
           user_devnet: true
@@ -774,11 +705,11 @@ workflows:
 #                - /.*/
 #            tags:
 #              only:
-#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#                - /^\d+\.\d+\.\d+$/
 
       - trigger_devnet_deploy:
-          test_devnet: true
-          network: "test"
+          user_devnet: true
+          network: "user"
           requires:
             - build_docker_img
 #          filters:
@@ -787,4 +718,73 @@ workflows:
 #                - /.*/
 #            tags:
 #              only:
-#                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+#                - /^\d+\.\d+\.\d+$/
+
+  build_test_devnet:
+    jobs:
+      - build_macos:
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only:
+                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+
+      - build_linux:
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only:
+                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+
+      - build_faucet_and_genesis:
+          requires:
+            - build_linux
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only:
+                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+
+      - publish_release:
+          requires:
+            - build_linux
+            - build_macos
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only:
+                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+
+      - build_docker_img:
+          user_devnet: true
+          requires:
+            - build_linux
+            - build_faucet_and_genesis
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only:
+                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
+
+      - trigger_devnet_deploy:
+          test_devnet: true
+          network: "test"
+          requires:
+            - build_docker_img
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only:
+                - /^(test\-devnet\-)*\d+\.\d+\.\d+$/
