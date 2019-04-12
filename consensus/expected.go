@@ -359,8 +359,10 @@ func (c *Expected) runMessages(ctx context.Context, st state.Tree, vms vm.Storag
 
 	// TODO: order blocks in the tipset by ticket
 	// TODO: don't process messages twice
-	for _, blk := range ts.ToSlice() {
-		cpyCid, err := st.Flush(ctx)
+	for i, blk := range ts.ToSlice() {
+		idA := fmt.Sprintf("EC-A-%d", i)
+		idB := fmt.Sprintf("EC-B-%d", i)		
+		cpyCid, err := st.Flush(context.WithValue(ctx, "flush-point", idA))
 		if err != nil {
 			return nil, errors.Wrap(err, "error validating block state")
 		}
@@ -379,7 +381,7 @@ func (c *Expected) runMessages(ctx context.Context, st state.Tree, vms vm.Storag
 			return nil, fmt.Errorf("found invalid message receipts: %v %v", receipts, blk.MessageReceipts)
 		}
 
-		outCid, err := cpySt.Flush(ctx)
+		outCid, err := cpySt.Flush(context.WithValue(ctx, "flush-point", idB))
 		if err != nil {
 			return nil, errors.Wrap(err, "error validating block state")
 		}

@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 
 	"github.com/ipfs/go-hamt-ipld"
@@ -20,6 +21,7 @@ func Init(ctx context.Context, r repo.Repo, bs bstore.Blockstore, cst *hamt.Cbor
 	// Generate the genesis tipset.
 	genesis, err := gen(cst, bs)
 	if err != nil {
+		fmt.Printf("genesis not working\n")
 		return nil, err
 	}
 	genTipSet, err := types.NewTipSet(genesis)

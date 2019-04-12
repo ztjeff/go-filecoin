@@ -3,6 +3,7 @@ package consensus
 import (
 	"context"
 	"math/big"
+	"fmt"
 
 	"github.com/ipfs/go-hamt-ipld"
 	"github.com/ipfs/go-ipfs-blockstore"
@@ -103,6 +104,7 @@ func NewEmptyConfig() *Config {
 // MakeGenesisFunc returns a genesis function configured by a set of options.
 func MakeGenesisFunc(opts ...GenOption) GenesisInitFunc {
 	return func(cst *hamt.CborIpldStore, bs blockstore.Blockstore) (*types.Block, error) {
+		fmt.Printf("running default gen\n")
 		ctx := context.Background()
 		st := state.NewEmptyStateTreeWithActors(cst, builtin.Actors)
 		storageMap := vm.NewStorageMap(bs)
@@ -110,6 +112,7 @@ func MakeGenesisFunc(opts ...GenOption) GenesisInitFunc {
 		genCfg := NewEmptyConfig()
 		for _, opt := range opts {
 			if err := opt(genCfg); err != nil {
+				fmt.Printf("error modifying gen config\n")
 				return nil, err
 			}
 		}
@@ -118,10 +121,12 @@ func MakeGenesisFunc(opts ...GenOption) GenesisInitFunc {
 		for addr, val := range genCfg.accounts {
 			a, err := account.NewActor(val)
 			if err != nil {
+				fmt.Printf("error making account actor\n")				
 				return nil, err
 			}
 
 			if err := st.SetActor(ctx, addr, a); err != nil {
+				fmt.Printf("error setting account actor\n")								
 				return nil, err
 			}
 		}
@@ -130,25 +135,30 @@ func MakeGenesisFunc(opts ...GenOption) GenesisInitFunc {
 			a := miner.NewActor()
 
 			if err := st.SetActor(ctx, addr, a); err != nil {
+				fmt.Printf("error setting mienr actor\n")												
 				return nil, err
 			}
 
 			s := storageMap.NewStorage(addr, a)
 			scid, err := s.Put(val)
 			if err != nil {
+				fmt.Printf("error setting miner actor state\n")
 				return nil, err
 			}
 			if err = s.Commit(scid, a.Head); err != nil {
+				fmt.Printf("error commiting miner actor state\n")				
 				return nil, err
 			}
 		}
 		for addr, nonce := range genCfg.nonces {
 			a, err := st.GetActor(ctx, addr)
 			if err != nil {
+				fmt.Printf("error getting actor\n")								
 				return nil, err
 			}
 			a.Nonce = types.Uint64(nonce)
 			if err := st.SetActor(ctx, addr, a); err != nil {
+				fmt.Printf("error setting actor with nonce\n")			
 				return nil, err
 			}
 		}
@@ -158,12 +168,14 @@ func MakeGenesisFunc(opts ...GenOption) GenesisInitFunc {
 		// Now add any other actors configured.
 		for addr, a := range genCfg.actors {
 			if err := st.SetActor(ctx, addr, a); err != nil {
+				fmt.Printf("error setting up other actors\n")						
 				return nil, err
 			}
 		}
 
 		c, err := st.Flush(ctx)
 		if err != nil {
+			fmt.Printf("error state flushing\n")									
 			return nil, err
 		}
 
@@ -173,11 +185,13 @@ func MakeGenesisFunc(opts ...GenOption) GenesisInitFunc {
 		}
 
 		if _, err := cst.Put(ctx, genesis); err != nil {
+			fmt.Printf("error putting genesis to cst\n")
 			return nil, err
 		}
 
 		err = storageMap.Flush()
 		if err != nil {
+			fmt.Printf("error flushing storage map\n")			
 			return nil, err
 		}
 

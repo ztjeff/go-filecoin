@@ -66,6 +66,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/sampling"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
+	"github.com/filecoin-project/go-filecoin/vm"	
 	"github.com/filecoin-project/go-filecoin/wallet"
 )
 
@@ -330,7 +331,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 		nc.Repo = repo.NewInMemoryRepo()
 	}
 
-	bs := bstore.NewBlockstore(nc.Repo.Datastore())
+	bs := bstore.NewBlockstore(nc.Repo.VMStorageDatastore())
 
 	validator := blankValidator{}
 
@@ -345,7 +346,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 			r, err := dht.New(
 				ctx,
 				h,
-				dhtopts.Datastore(nc.Repo.Datastore()),
+				dhtopts.Datastore(nc.Repo.DHTDatastore()),
 				dhtopts.NamespacedValidator("v", validator),
 				dhtopts.Protocols(filecoinDHTProtocol),
 			)
@@ -372,11 +373,13 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	// set up bitswap
 	nwork := bsnet.NewFromIpfsHost(peerHost, router)
 	//nwork := bsnet.NewFromIpfsHost(innerHost, router)
-	bswap := bitswap.New(ctx, nwork, bs)
-	bservice := bserv.New(bs, bswap)
+	bswapBS := bstore.NewBlockstore(nc.Repo.FetcherDatastore())
+	bswap := bitswap.New(ctx, nwork, bswapBS)
+	bservice := bserv.New(bswapBS, bswap)
 	fetcher := net.NewFetcher(ctx, bservice)
 
-	cstOffline := hamt.CborIpldStore{Blocks: bserv.New(bs, offline.Exchange(bs))}
+	cstBS := bstore.NewBlockstore(nc.Repo.StateTreeDatastore())
+	cstOffline := hamt.CborIpldStore{Blocks: bserv.New(cstBS, offline.Exchange(cstBS))}
 	genCid, err := readGenesisCid(nc.Repo.Datastore())
 	if err != nil {
 		return nil, err
@@ -399,8 +402,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	if nc.Verifier == nil {
 		nodeConsensus = consensus.NewExpected(&cstOffline, bs, processor, powerTable, genCid, &proofs.RustVerifier{})
 	} else {
-		nodeConsensus = consensus.NewExpected(&cstOffline, bs, processor, powerTable, genCid, nc.Verifier)
-	}
+		nodeConsensus = consensus.NewExpected(&cstOffline, bs, processor, powerTable, genCid, nc.Verifier)	}
 
 	// only the syncer gets the storage which is online connected
 	chainSyncer := chain.NewDefaultSyncer(&cstOffline, nodeConsensus, chainStore, fetcher)
@@ -482,6 +484,43 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 
 // Start boots up the node.
 func (node *Node) Start(ctx context.Context) error {
+
+	/* Print the vm storage bytes */
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(30 *time.Second):
+				fmt.Printf("\nVm storage bytes written: %d\n", vm.VmStorageBytes)
+
+				fmt.Printf("** total ipld node additions: %d **", node.cborStore.SessionCount("adds"))
+				fmt.Printf("** max size of ipld node added: %d **", node.cborStore.SessionCount("biggest"))
+				fmt.Printf("Tree flush-point bytes written: %d\n", node.cborStore.SessionCount(state.TreeID))
+				fmt.Printf("Sync flush-point bytes written: %d\n", node.cborStore.SessionCount("Sync"))
+				
+				fmt.Printf("EC-A-0 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-0"))
+				fmt.Printf("EC-A-1 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-1"))
+				fmt.Printf("EC-A-2 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-2"))
+				fmt.Printf("EC-A-3 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-3"))
+				fmt.Printf("EC-A-4 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-4"))
+				fmt.Printf("EC-A-5 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-5"))
+				fmt.Printf("EC-A-6 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-A-6"))
+
+				fmt.Printf("EC-B-0 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-0"))
+				fmt.Printf("EC-B-1 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-1"))
+				fmt.Printf("EC-B-2 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-2"))
+				fmt.Printf("EC-B-3 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-3"))
+				fmt.Printf("EC-B-4 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-4"))
+				fmt.Printf("EC-B-5 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-5"))
+				fmt.Printf("EC-B-6 flush-point bytes written: %d\n", node.cborStore.SessionCount("EC-B-6"))
+
+				head, _ := node.PorcelainAPI.ChainHead()				
+				fmt.Printf("Head tipset first block size %d \n", len(head.ToSlice()[0].ToNode().RawData()))
+			}
+		}
+	}()
+	
 	if err := metrics.RegisterPrometheusEndpoint(node.Repo.Config().Metrics); err != nil {
 		return errors.Wrap(err, "failed to setup metrics")
 	}
@@ -504,7 +543,7 @@ func (node *Node) Start(ctx context.Context) error {
 		cidSet := types.NewSortedCidSet(cids...)
 		err := node.Syncer.HandleNewTipset(context.Background(), cidSet)
 		if err != nil {
-			log.Infof("error handling blocks: %s", cidSet.String())
+			log.Infof("error handling blocks: %s: %s", cidSet.String(), err)
 		}
 	}
 	node.HelloSvc = hello.New(node.Host(), node.ChainReader.GenesisCid(), syncCallBack, node.PorcelainAPI.ChainHead, node.Repo.Config().Net, flags.Commit)

@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"sync"
+	"fmt"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -161,10 +162,12 @@ func (syncer *DefaultSyncer) tipSetState(ctx context.Context, tsKey types.Sorted
 	}
 	tsas, err := syncer.chainStore.GetTipSetAndState(tsKey)
 	if err != nil {
+		fmt.Printf("error getting tsas from chain store\n")
 		return nil, err
 	}
 	st, err := state.LoadStateTree(ctx, syncer.stateStore, tsas.TipSetStateRoot, builtin.Actors)
 	if err != nil {
+		fmt.Printf("error loading state tree from state store \n")		
 		return nil, err
 	}
 	return st, nil
@@ -208,9 +211,10 @@ func (syncer *DefaultSyncer) syncOne(ctx context.Context, parent, next types.Tip
 	// a new state to add to the store.
 	st, err = syncer.consensus.RunStateTransition(ctx, next, ancestors, st)
 	if err != nil {
+		fmt.Printf("error during run state transition: %s\n", err)		
 		return err
 	}
-	root, err := st.Flush(ctx)
+	root, err := st.Flush(context.WithValue(ctx, "flush-point", "Sync"))
 	if err != nil {
 		return err
 	}

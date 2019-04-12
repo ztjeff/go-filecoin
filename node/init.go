@@ -58,8 +58,9 @@ func Init(ctx context.Context, r repo.Repo, gen consensus.GenesisInitFunc, opts 
 		o(cfg)
 	}
 
-	bs := bstore.NewBlockstore(r.Datastore())
-	cst := &hamt.CborIpldStore{Blocks: bserv.New(bs, offline.Exchange(bs))}
+	bs := bstore.NewBlockstore(r.VMStorageDatastore())
+	cstBS := bstore.NewBlockstore(r.StateTreeDatastore())	
+	cst := &hamt.CborIpldStore{Blocks: bserv.New(cstBS, offline.Exchange(cstBS))}
 
 	if _, err := chain.Init(ctx, r, bs, cst, gen); err != nil {
 		return errors.Wrap(err, "Could not Init Node")

@@ -32,6 +32,10 @@ const (
 	walletDatastorePrefix  = "wallet"
 	chainDatastorePrefix   = "chain"
 	dealsDatastorePrefix   = "deals"
+	vmStorageDatastorePrefix   = "vm-storage"
+	stateTreeDatastorePrefix   = "tree"
+	dhtDatastorePrefix = "dht"
+	fetcherDatastorePrefix = "bitswap"	
 	snapshotStorePrefix    = "snapshots"
 	snapshotFilenamePrefix = "snapshot"
 )
@@ -60,6 +64,10 @@ type FSRepo struct {
 	walletDs Datastore
 	chainDs  Datastore
 	dealsDs  Datastore
+	vmStorageDs Datastore
+	fetcherDs Datastore
+	dhtDs Datastore
+	stateTreeDs Datastore
 
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
@@ -160,6 +168,23 @@ func (r *FSRepo) loadFromDisk() error {
 	if err := r.openDealsDatastore(); err != nil {
 		return errors.Wrap(err, "failed to open deals datastore")
 	}
+
+	if err := r.openVMStorageDatastore(); err != nil {
+		return errors.Wrap(err, "failed to open deals datastore")
+	}
+
+	if err := r.openStateTreeDatastore(); err != nil {
+		return errors.Wrap(err, "failed to open deals datastore")
+	}
+
+	if err := r.openDHTDatastore(); err != nil {
+		return errors.Wrap(err, "failed to open deals datastore")
+	}
+
+	if err := r.openFetcherDatastore(); err != nil {
+		return errors.Wrap(err, "failed to open deals datastore")
+	}				
+	
 	return nil
 }
 
@@ -252,6 +277,22 @@ func (r *FSRepo) ChainDatastore() Datastore {
 // DealsDatastore returns the deals datastore.
 func (r *FSRepo) DealsDatastore() Datastore {
 	return r.dealsDs
+}
+
+func (r *FSRepo) VMStorageDatastore() Datastore {
+	return r.vmStorageDs
+}
+
+func (r *FSRepo) StateTreeDatastore() Datastore {
+	return r.stateTreeDs
+}
+
+func (r *FSRepo) FetcherDatastore() Datastore {
+	return r.fetcherDs
+}
+
+func (r *FSRepo) DHTDatastore() Datastore {
+	return r.dhtDs
 }
 
 // Version returns the version of the repo
@@ -377,6 +418,50 @@ func (r *FSRepo) openChainDatastore() error {
 	}
 
 	r.chainDs = ds
+
+	return nil
+}
+
+func (r *FSRepo) openVMStorageDatastore() error {
+	ds, err := badgerds.NewDatastore(filepath.Join(r.path, vmStorageDatastorePrefix), badgerOptions())
+	if err != nil {
+		return err
+	}
+
+	r.vmStorageDs = ds
+
+	return nil
+}
+
+func (r *FSRepo) openStateTreeDatastore() error {
+	ds, err := badgerds.NewDatastore(filepath.Join(r.path, stateTreeDatastorePrefix), badgerOptions())
+	if err != nil {
+		return err
+	}
+
+	r.stateTreeDs = ds
+
+	return nil
+}
+
+func (r *FSRepo) openDHTDatastore() error {
+	ds, err := badgerds.NewDatastore(filepath.Join(r.path, dhtDatastorePrefix), badgerOptions())
+	if err != nil {
+		return err
+	}
+
+	r.dhtDs = ds
+
+	return nil
+}
+
+func (r *FSRepo) openFetcherDatastore() error {
+	ds, err := badgerds.NewDatastore(filepath.Join(r.path, fetcherDatastorePrefix), badgerOptions())
+	if err != nil {
+		return err
+	}
+
+	r.fetcherDs = ds
 
 	return nil
 }

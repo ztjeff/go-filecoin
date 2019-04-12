@@ -23,6 +23,10 @@ type MemRepo struct {
 	W          Datastore
 	Chain      Datastore
 	DealsDs    Datastore
+	vm Datastore
+	tree  Datastore
+	fetcher  Datastore
+	dht  Datastore
 	version    uint
 	apiAddress string
 	stagingDir string
@@ -57,6 +61,10 @@ func NewInMemoryRepoWithSectorDirectories(staging, sealedDir string) *MemRepo {
 		W:          dss.MutexWrap(datastore.NewMapDatastore()),
 		Chain:      dss.MutexWrap(datastore.NewMapDatastore()),
 		DealsDs:    dss.MutexWrap(datastore.NewMapDatastore()),
+		vm:    dss.MutexWrap(datastore.NewMapDatastore()),
+		tree:  dss.MutexWrap(datastore.NewMapDatastore()),
+		fetcher:  dss.MutexWrap(datastore.NewMapDatastore()),
+		dht:  dss.MutexWrap(datastore.NewMapDatastore()),
 		version:    Version,
 		stagingDir: staging,
 		sealedDir:  sealedDir,
@@ -99,6 +107,22 @@ func (mr *MemRepo) WalletDatastore() Datastore {
 // ChainDatastore returns the chain datastore.
 func (mr *MemRepo) ChainDatastore() Datastore {
 	return mr.Chain
+}
+
+func (mr *MemRepo) VMStorageDatastore() Datastore {
+	return mr.vm
+}
+
+func (mr *MemRepo) FetcherDatastore() Datastore {
+	return mr.fetcher
+}
+
+func (mr *MemRepo) DHTDatastore() Datastore {
+	return mr.dht
+}
+
+func (mr *MemRepo) StateTreeDatastore() Datastore {
+	return mr.tree
 }
 
 // DealsDatastore returns the deals datastore for miners.

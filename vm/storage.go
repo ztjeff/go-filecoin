@@ -40,6 +40,11 @@ type StorageMap interface {
 }
 
 var _ StorageMap = &storageMap{}
+var VmStorageBytes int
+
+func init() {
+	VmStorageBytes = 0
+}
 
 // NewStorageMap returns a storage object for the given datastore.
 func NewStorageMap(bs blockstore.Blockstore) StorageMap {
@@ -100,6 +105,10 @@ func NewStorage(bs blockstore.Blockstore, act *actor.Actor) Storage {
 		actor:      act,
 		blockstore: bs,
 	}
+}
+
+func (s Storage) Blockstore() blockstore.Blockstore {
+	return s.blockstore
 }
 
 // Put adds a node to temporary storage by id.
@@ -198,10 +207,13 @@ func (s *Storage) Flush() error {
 
 	blks := make([]blocks.Block, 0, liveIds.Len())
 	liveIds.ForEach(func(c cid.Cid) error { // nolint: errcheck
+		if has, _ := s.blockstore.Has(c); !has {
+			VmStorageBytes += len(s.chunks[c].RawData())
+		}
 		blks = append(blks, s.chunks[c])
 		return nil
 	})
-
+	
 	return s.blockstore.PutMany(blks)
 }
 

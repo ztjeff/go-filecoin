@@ -84,3 +84,5 @@ require (
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+replace github.com/ipfs/go-hamt-ipld => /Users/zenground0/Ground/go/src/github.com/ipfs/go-hamt-ipld

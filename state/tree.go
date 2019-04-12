@@ -25,6 +25,8 @@ type tree struct {
 	builtinActors map[cid.Cid]exec.ExecutableActor
 }
 
+const TreeID = "tree"
+
 // RevID identifies a snapshot of the StateTree.
 type RevID int
 

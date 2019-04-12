@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"bytes"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -148,6 +149,7 @@ func loadGenesis(ctx context.Context, rep repo.Repo, sourceName string) (consens
 	if sourceURL.Scheme == "http" || sourceURL.Scheme == "https" {
 		// NOTE: This code is temporary. It allows downloading a genesis block via HTTP(S) to be able to join a
 		// recently deployed test devnet.
+		// NOTE: ALL CODE IS TEMPORARY
 		response, err := http.Get(sourceName)
 		if err != nil {
 			return nil, err
@@ -163,11 +165,18 @@ func loadGenesis(ctx context.Context, rep repo.Repo, sourceName string) (consens
 		source = file
 	}
 	defer source.Close() // nolint: errcheck
+	var duplicate bytes.Buffer
+	tee := io.TeeReader(source, &duplicate)
 
-	bs := blockstore.NewBlockstore(rep.Datastore())
-	ch, err := car.LoadCar(bs, source)
+	bs := blockstore.NewBlockstore(rep.VMStorageDatastore())
+	ch, err := car.LoadCar(bs, tee)
 	if err != nil {
 		return nil, err
+	}
+	cstBS := blockstore.NewBlockstore(rep.StateTreeDatastore())
+	_, err = car.LoadCar(cstBS, &duplicate)
+	if err != nil {
+		return nil, fmt.Errorf("you can't tee for ponies booy")
 	}
 
 	if len(ch.Roots) != 1 {
@@ -178,6 +187,7 @@ func loadGenesis(ctx context.Context, rep repo.Repo, sourceName string) (consens
 		var blk types.Block
 
 		if err := cst.Get(ctx, ch.Roots[0], &blk); err != nil {
+			fmt.Printf("Gotcha!!\n")
 			return nil, err
 		}
 

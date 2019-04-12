@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	block "github.com/ipfs/go-block-format"
+	bstore "github.com/ipfs/go-ipfs-blockstore"	
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -153,6 +154,10 @@ func (sab *storageAsBlocks) GetBlock(ctx context.Context, c cid.Cid) (block.Bloc
 func (sab *storageAsBlocks) AddBlock(b block.Block) error {
 	_, err := sab.s.Put(b)
 	return err
+}
+
+func (sab *storageAsBlocks) Blockstore() bstore.Blockstore {
+	return sab.s.Blockstore()
 }
 
 // lookup implements exec.Lookup and provides structured key-value storage for actors
