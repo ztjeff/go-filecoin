@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	dhtm "github.com/libp2p/go-libp2p-kad-dht/metrics"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr-net"
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -48,6 +49,10 @@ func RegisterPrometheusEndpoint(cfg *config.MetricsConfig) error {
 
 	view.RegisterExporter(pe)
 	view.SetReportingPeriod(interval)
+	view.Register(dhtm.ReceivedMessagesView, dhtm.ReceivedMessageErrorsView,
+		dhtm.ReceivedBytesView, dhtm.InboundRequestLatencyView, dhtm.OutboundRequestLatencyView,
+		dhtm.SentMessagesView, dhtm.SentMessageErrorsView, dhtm.SentRequestsView,
+		dhtm.SentRequestErrorsView, dhtm.SentBytesView)
 
 	go func() {
 		mux := http.NewServeMux()
