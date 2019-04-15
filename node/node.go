@@ -345,7 +345,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 			r, err := dht.New(
 				ctx,
 				h,
-				dhtopts.Datastore(nc.Repo.Datastore()),
+				dhtopts.Datastore(nc.Repo.DhtDatastore()),
 				dhtopts.NamespacedValidator("v", validator),
 				dhtopts.Protocols(filecoinDHTProtocol),
 			)

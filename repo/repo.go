@@ -37,6 +37,9 @@ type Repo interface {
 	// DealsDatastore holds deals data.
 	DealsDatastore() Datastore
 
+	// DhtDatastore holds dht data.
+	DhtDatastore() Datastore
+
 	// SetAPIAddr sets the address of the running API.
 	SetAPIAddr(string) error
 
