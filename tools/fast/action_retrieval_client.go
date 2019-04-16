@@ -2,7 +2,6 @@ package fast
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ipfs/go-cid"
@@ -16,8 +15,23 @@ func (f *Filecoin) RetrievalClientRetrievePiece(ctx context.Context, pieceCID ci
 	if err != nil {
 		return nil, err
 	}
-	if out.ExitCode() > 0 {
-		return nil, fmt.Errorf("filecoin command: %s, exited with non-zero exitcode: %d", out.Args(), out.ExitCode())
+
+	stdout := out.Stdout()
+
+	rc := &readCloser{
+		r: stdout,
+		closer: func() error {
+			if err := stdout.Close(); err != nil {
+				return err
+			}
+
+			if err := getOutputError(out); err != nil {
+				return err
+			}
+
+			return nil
+		},
 	}
-	return out.Stdout(), nil
+
+	return rc, nil
 }
