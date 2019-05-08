@@ -2,6 +2,9 @@ package commands_test
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"math/big"
 	"testing"
 
@@ -45,7 +48,10 @@ func TestSelfDialRetrievalGoodError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Genesis Miner fails on self dial when retrieving from itself.
-	_, err = env.GenesisMiner.RetrievalClientRetrievePiece(ctx, cid, minerAddr)
+	r, err := env.GenesisMiner.RetrievalClientRetrievePiece(ctx, cid, minerAddr)
+	assert.NoError(t, err)
+	_, err = io.Copy(ioutil.Discard, r)
+	err = r.Close()
 	assert.Error(t, err)
 	fastesting.AssertStdErrContains(t, env.GenesisMiner, "attempting to retrieve piece from self")
 }

@@ -3,8 +3,10 @@ package fast
 import (
 	"context"
 	"io"
+	"io/ioutil"
 
 	"github.com/ipfs/go-cid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/filecoin-project/go-filecoin/address"
 )
@@ -18,10 +20,22 @@ func (f *Filecoin) RetrievalClientRetrievePiece(ctx context.Context, pieceCID ci
 
 	stdout := out.Stdout()
 
+	// We need to drain stderr
+	g, _ := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		stderr := out.Stderr()
+		_, err := io.Copy(ioutil.Discard, stderr)
+		return err
+	})
+
 	rc := &readCloser{
 		r: stdout,
 		closer: func() error {
 			if err := stdout.Close(); err != nil {
+				return err
+			}
+
+			if err := g.Wait(); err != nil {
 				return err
 			}
 
