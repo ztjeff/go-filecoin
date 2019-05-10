@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/cskr/pubsub"
+	"github.com/hashicorp/golang-lru"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-hamt-ipld"
@@ -63,6 +64,8 @@ type DefaultStore struct {
 
 	// Tracks tipsets by height/parentset for use by expected consensus.
 	tipIndex *TipIndex
+
+	block2QCache *lru.TwoQueueCache
 }
 
 // Ensure DefaultStore satisfies the Store interface at compile time.
@@ -71,13 +74,18 @@ var _ Store = (*DefaultStore)(nil)
 // NewDefaultStore constructs a new default store.
 func NewDefaultStore(ds repo.Datastore, stateStore *hamt.CborIpldStore, genesisCid cid.Cid) *DefaultStore {
 	priv := bstore.NewBlockstore(ds)
+	bcache, err := lru.New2Q(1000)
+	if err != nil {
+		panic(err)
+	}
 	return &DefaultStore{
-		bsPriv:     priv,
-		stateStore: stateStore,
-		ds:         ds,
-		headEvents: pubsub.New(128),
-		tipIndex:   NewTipIndex(),
-		genesis:    genesisCid,
+		bsPriv:       priv,
+		stateStore:   stateStore,
+		ds:           ds,
+		headEvents:   pubsub.New(128),
+		tipIndex:     NewTipIndex(),
+		genesis:      genesisCid,
+		block2QCache: bcache,
 	}
 }
 
@@ -281,11 +289,19 @@ func (store *DefaultStore) GetBlocks(ctx context.Context, cids types.SortedCidSe
 
 // GetBlock retrieves a block by cid.
 func (store *DefaultStore) GetBlock(ctx context.Context, c cid.Cid) (*types.Block, error) {
+	if blk, has := store.block2QCache.Get(c); has {
+		return blk.(*types.Block), nil
+	}
 	data, err := store.bsPriv.Get(c)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get block %s", c.String())
 	}
-	return types.DecodeBlock(data.RawData())
+	blk, err := types.DecodeBlock(data.RawData())
+	if err != nil {
+		return nil, err
+	}
+	store.block2QCache.Add(c, blk)
+	return blk, nil
 }
 
 // HasAllBlocks indicates whether the blocks are in the store.

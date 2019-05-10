@@ -19,6 +19,15 @@ func SetupGenesisNode(ctx context.Context, node *fast.Filecoin, minerAddress add
 		return err
 	}
 
+	cfg, err := node.Config()
+	if err != nil {
+		return err
+	}
+	cfg.Swarm.Address = "/ip4/0.0.0.0/tcp/7000"
+	if err := node.WriteConfig(cfg); err != nil {
+		return err
+	}
+
 	if _, err := node.StartDaemon(ctx, true); err != nil {
 		return err
 	}

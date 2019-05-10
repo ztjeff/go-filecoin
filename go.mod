@@ -14,6 +14,7 @@ require (
 	github.com/golang/mock v1.2.0 // indirect
 	github.com/golangci/golangci-lint v1.15.0
 	github.com/gorilla/mux v1.7.0 // indirect
+	github.com/hashicorp/golang-lru v0.5.1
 	github.com/ipfs/go-bitswap v0.0.2
 	github.com/ipfs/go-block-format v0.0.2
 	github.com/ipfs/go-blockservice v0.0.2

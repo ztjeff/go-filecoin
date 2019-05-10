@@ -2,6 +2,7 @@ package series
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/filecoin-project/go-filecoin/tools/fast"
 	"github.com/filecoin-project/go-filecoin/types"
@@ -16,6 +17,8 @@ func WaitForBlockHeight(ctx context.Context, client *fast.Filecoin, bh *types.Bl
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("Height: ", hh.String())
 
 		if hh.GreaterEqual(bh) {
 			break

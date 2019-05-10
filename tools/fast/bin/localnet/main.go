@@ -38,7 +38,8 @@ var (
 	workdir         string
 	binpath         string
 	shell           bool
-	blocktime       = 5 * time.Second
+	blocktime       = 5 * time.Millisecond
+	maxHeight       = 1000
 	err             error
 	fil             = 100000
 	balance         big.Int
@@ -89,6 +90,7 @@ func init() {
 	flag.BoolVar(&smallSectors, "small-sectors", smallSectors, "enables small sectors")
 	flag.DurationVar(&blocktime, "blocktime", blocktime, "duration for blocktime")
 	flag.IntVar(&minerCount, "miner-count", minerCount, "number of miners")
+	flag.IntVar(&maxHeight, "max-height", maxHeight, "max(ish) height of block chain")
 	flag.Uint64Var(&minerPledge, "miner-pledge", minerPledge, "number of sectors to pledge for each miner")
 	flag.StringVar(&minerCollateralArg, "miner-collateral", minerCollateralArg, "amount of fil each miner will use for collateral")
 	flag.StringVar(&minerPriceArg, "miner-price", minerPriceArg, "price value used when creating ask for miners")
@@ -198,7 +200,7 @@ func main() {
 		DaemonOpts: []fast.ProcessDaemonOption{fast.POBlockTime(blocktime)},
 	}
 
-	ctx = series.SetCtxSleepDelay(ctx, blocktime)
+	ctx = series.SetCtxSleepDelay(ctx, (5 * time.Second))
 
 	// The genesis process is the filecoin node that loads the miner that is
 	// define with power in the genesis block, and the prefunnded wallet
@@ -216,6 +218,21 @@ func main() {
 
 	if err := genesis.MiningStart(ctx); err != nil {
 		exitcode = handleError(err, "failed to start mining on genesis node;")
+		return
+	}
+
+	if err := series.WaitForBlockHeight(ctx, genesis, types.NewBlockHeight(uint64(maxHeight))); err != nil {
+		exitcode = handleError(err, "failed to wait for block height;")
+		return
+	}
+	genesis.MiningStop(ctx)
+
+	fmt.Printf("block height of %d reached, going to bed\n", maxHeight)
+	bed := time.NewTimer(3 * time.Hour)
+	select {
+	case <-exit:
+		return
+	case <-bed.C:
 		return
 	}
 
