@@ -195,6 +195,8 @@ func main() {
 		return
 	}
 
+	fmt.Printf("GENESIS SERVER: %s", genesisURI)
+
 	fastenvOpts := fast.EnvironmentOpts{
 		InitOpts:   []fast.ProcessInitOption{fast.POGenesisFile(genesisURI)},
 		DaemonOpts: []fast.ProcessDaemonOption{fast.POBlockTime(blocktime)},

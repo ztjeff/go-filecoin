@@ -194,7 +194,7 @@ func (e *EnvironmentMemoryGenesis) startGenesisServer() error {
 
 	e.genesisServer = &http.Server{Handler: handler}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "127.0.0.1:7001")
 	if err != nil {
 		return err
 	}
