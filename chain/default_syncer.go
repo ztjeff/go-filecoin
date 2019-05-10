@@ -13,11 +13,15 @@ import (
 
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/consensus"
+	"github.com/filecoin-project/go-filecoin/metrics"
 	"github.com/filecoin-project/go-filecoin/metrics/tracing"
 	"github.com/filecoin-project/go-filecoin/sampling"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 )
+
+var syncOneTimer = metrics.NewTimer("syncOne_duration", "how long syncOne takes")
+var handleTipsetTimer = metrics.NewTimer("handleTipset_duration", "how long handle tipset takes")
 
 // The amount of time the syncer will wait while fetching the blocks of a
 // tipset over the network.
@@ -188,6 +192,8 @@ func (syncer *DefaultSyncer) tipSetState(ctx context.Context, tsKey types.Sorted
 // Precondition: the caller of syncOne must hold the syncer's lock (syncer.mu) to
 // ensure head is not modified by another goroutine during run.
 func (syncer *DefaultSyncer) syncOne(ctx context.Context, parent, next types.TipSet) error {
+	syncTimer := syncOneTimer.Start(ctx)
+	defer syncTimer.Stop(ctx)
 	head := syncer.chainStore.GetHead()
 
 	// if tipset is already head, we've been here before. do nothing.
@@ -335,6 +341,9 @@ func (syncer *DefaultSyncer) widen(ctx context.Context, ts types.TipSet) (types.
 // attempt to validate and caches invalid blocks it has encountered to
 // help prevent DOS.
 func (syncer *DefaultSyncer) HandleNewTipset(ctx context.Context, tipsetCids types.SortedCidSet) (err error) {
+	tsTimer := handleTipsetTimer.Start(ctx)
+	defer tsTimer.Stop(ctx)
+
 	logSyncer.Debugf("Begin fetch and sync of chain with head %v", tipsetCids)
 	ctx, span := trace.StartSpan(ctx, "DefaultSyncer.HandleNewTipset")
 	span.AddAttributes(trace.StringAttribute("tipset", tipsetCids.String()))

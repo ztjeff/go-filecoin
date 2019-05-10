@@ -19,11 +19,15 @@ import (
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/address"
+	"github.com/filecoin-project/go-filecoin/metrics"
 	"github.com/filecoin-project/go-filecoin/metrics/tracing"
 	"github.com/filecoin-project/go-filecoin/repo"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 )
+
+var cacheMissCt = metrics.NewInt64Counter("chain_store_cache_miss", "if we miss")
+var cacheHitCt = metrics.NewInt64Counter("chain_store_cache_hit", "if we miss")
 
 var logStore = logging.Logger("chain.store")
 
@@ -290,12 +294,17 @@ func (store *DefaultStore) GetBlocks(ctx context.Context, cids types.SortedCidSe
 // GetBlock retrieves a block by cid.
 func (store *DefaultStore) GetBlock(ctx context.Context, c cid.Cid) (*types.Block, error) {
 	if blk, has := store.block2QCache.Get(c); has {
+		cacheHitCt.Inc(ctx, 1)
 		return blk.(*types.Block), nil
 	}
+
+	// DISK
 	data, err := store.bsPriv.Get(c)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get block %s", c.String())
 	}
+	cacheMissCt.Inc(ctx, 1)
+
 	blk, err := types.DecodeBlock(data.RawData())
 	if err != nil {
 		return nil, err
