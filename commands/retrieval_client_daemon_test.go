@@ -2,7 +2,6 @@ package commands_test
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"

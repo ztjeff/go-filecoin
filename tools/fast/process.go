@@ -386,6 +386,7 @@ func (f *Filecoin) RunCmdJSONWithStdin(ctx context.Context, stdin io.Reader, v i
 	return json.Unmarshal(bstdout, &v)
 }
 
+// DecodeCloser decodes a stream and allows for closing
 type DecodeCloser interface {
 	Decode(v interface{}) error
 	Close() error
