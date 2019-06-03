@@ -107,7 +107,6 @@ type DefaultSyncer struct {
 	stateStore *hamt.CborIpldStore
 	// badTipSetCache is used to filter out collections of invalid blocks.
 	badTipSets *badTipSetCache
-	consensus  consensus.Protocol
 	chainStore syncerChainReader
 	// syncMode is an enumerable indicating whether the chain is currently caught
 	// up or still syncing. Presently, syncMode is always Syncing pending
@@ -115,6 +114,8 @@ type DefaultSyncer struct {
 	//
 	// TODO: https://github.com/filecoin-project/go-filecoin/issues/1160
 	syncMode SyncMode
+
+	consensus consensus.Protocol
 }
 
 var _ Syncer = (*DefaultSyncer)(nil)
@@ -254,6 +255,13 @@ func (syncer *DefaultSyncer) syncOne(ctx context.Context, parent, next types.Tip
 	// if tipset is already head, we've been here before. do nothing.
 	if head.Equals(next.ToSortedCidSet()) {
 		return nil
+	}
+
+	// TODO DO NOT MERGE is this validation right, or do we need to itter of parents?
+	for _, b := range next.ToSlice() {
+		if err := syncer.consensus.ValidateSemantic(ctx, parent.At(0), b); err != nil {
+			return err
+		}
 	}
 
 	// Lookup parent state. It is guaranteed by the syncer that it is in
@@ -441,6 +449,7 @@ func (syncer *DefaultSyncer) HandleNewTipset(ctx context.Context, tipsetCids typ
 	// Walk the chain given by the input blocks back to a known tipset in
 	// the store. This is the only code that may go to the network to
 	// resolve cids to blocks.
+	// collectChain performs block syntax validation
 	chain, err := syncer.collectChain(ctx, tipsetCids)
 	if err != nil {
 		return err
