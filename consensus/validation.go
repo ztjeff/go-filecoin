@@ -4,6 +4,8 @@ import (
 	"context"
 	"math/big"
 
+	logging "github.com/ipfs/go-log"
+
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/account"
 	"github.com/filecoin-project/go-filecoin/address"
@@ -37,20 +39,21 @@ type SignedMessageValidator interface {
 
 type defaultMessageValidator struct {
 	allowHighNonce bool
+	logger         logging.EventLogger
 }
 
 // NewDefaultMessageValidator creates a new default validator.
 // A default validator checks for both permanent semantic problems (e.g. invalid signature)
 // as well as temporary conditions which may change (e.g. actor can't cover gas limit).
 func NewDefaultMessageValidator() SignedMessageValidator {
-	return &defaultMessageValidator{}
+	return &defaultMessageValidator{logger: logging.Logger("consensus/validation")}
 }
 
 // NewOutboundMessageValidator creates a new default validator for outbound messages. This
 // validator matches the default behaviour but allows nonces higher than the actor's current nonce
 // (allowing multiple messages to enter the mpool at once).
 func NewOutboundMessageValidator() SignedMessageValidator {
-	return &defaultMessageValidator{allowHighNonce: true}
+	return &defaultMessageValidator{allowHighNonce: true, logger: logging.Logger("consensus/validation")}
 }
 
 var _ SignedMessageValidator = (*defaultMessageValidator)(nil)
@@ -75,32 +78,32 @@ func (v *defaultMessageValidator) Validate(ctx context.Context, msg *types.Signe
 	}
 
 	if msg.Value.IsNegative() {
-		log.Debugf("Cannot transfer negative value: %s from actor: %s", msg.Value.String(), msg.From.String())
+		v.logger.Debugf("Cannot transfer negative value: %s from actor: %s", msg.Value.String(), msg.From.String())
 		errNegativeValueCt.Inc(ctx, 1)
 		return errNegativeValue
 	}
 
 	if msg.GasLimit > types.BlockGasLimit {
-		log.Debugf("Message: %s gas limit from actor: %s above block limit: %s", msg.String(), msg.From.String(), string(types.BlockGasLimit))
+		v.logger.Debugf("Message: %s gas limit from actor: %s above block limit: %s", msg.String(), msg.From.String(), string(types.BlockGasLimit))
 		errGasAboveBlockLimitCt.Inc(ctx, 1)
 		return errGasAboveBlockLimit
 	}
 
 	// Avoid processing messages for actors that cannot pay.
 	if !canCoverGasLimit(msg, fromActor) {
-		log.Debugf("Insufficient funds for message: %s to cover gas limit from actor: %s", msg.String(), msg.From.String())
+		v.logger.Debugf("Insufficient funds for message: %s to cover gas limit from actor: %s", msg.String(), msg.From.String())
 		errInsufficientGasCt.Inc(ctx, 1)
 		return errInsufficientGas
 	}
 
 	if msg.Nonce < fromActor.Nonce {
-		log.Debugf("Message: %s nonce lower than actor nonce: %s from actor: %s", msg.String(), fromActor.Nonce, msg.From.String())
+		v.logger.Debugf("Message: %s nonce lower than actor nonce: %s from actor: %s", msg.String(), fromActor.Nonce, msg.From.String())
 		errNonceTooLowCt.Inc(ctx, 1)
 		return errNonceTooLow
 	}
 
 	if !v.allowHighNonce && msg.Nonce > fromActor.Nonce {
-		log.Debugf("Message: %s nonce greater than actor nonce: %s from actor: %s", msg.String(), fromActor.Nonce, msg.From.String())
+		v.logger.Debugf("Message: %s nonce greater than actor nonce: %s from actor: %s", msg.String(), fromActor.Nonce, msg.From.String())
 		errNonceTooHighCt.Inc(ctx, 1)
 		return errNonceTooHigh
 	}
@@ -133,7 +136,7 @@ func NewIngestionValidator(api ingestionValidatorAPI, cfg *config.MessagePoolCon
 	return &IngestionValidator{
 		api:       api,
 		cfg:       cfg,
-		validator: defaultMessageValidator{allowHighNonce: true},
+		validator: defaultMessageValidator{allowHighNonce: true, logger: logging.Logger("consensus/validation")},
 	}
 }
 

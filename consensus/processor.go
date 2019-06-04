@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	logging "github.com/ipfs/go-log"
 	"go.opencensus.io/trace"
 
 	"github.com/filecoin-project/go-filecoin/actor"
@@ -25,13 +26,13 @@ func init() {
 	pbTimer = metrics.NewTimer("consensus/process_block", "Duration of block processing in milliseconds")
 }
 
-// BlockRewarder applies all rewards due to the miner's owner for processing a block including block reward and gas
-type BlockRewarder interface {
-	// BlockReward pays out the mining reward
-	BlockReward(ctx context.Context, st state.Tree, minerOwnerAddr address.Address) error
+// A Processor processes all the messages in a block or tip set.
+type Processor interface {
+	// ProcessBlock processes all messages in a block.
+	ProcessBlock(ctx context.Context, st state.Tree, vms vm.StorageMap, blk *types.Block, ancestors []types.TipSet) ([]*ApplicationResult, error)
 
-	// GasReward pays gas from the sender to the miner
-	GasReward(ctx context.Context, st state.Tree, minerOwnerAddr address.Address, msg *types.SignedMessage, cost *types.AttoFIL) error
+	// ProcessTipSet processes all messages in a tip set.
+	ProcessTipSet(ctx context.Context, st state.Tree, vms vm.StorageMap, ts types.TipSet, ancestors []types.TipSet) (*ProcessTipSetResponse, error)
 }
 
 // ApplicationResult contains the result of successfully applying one message.
@@ -56,6 +57,7 @@ type ProcessTipSetResponse struct {
 type DefaultProcessor struct {
 	signedMessageValidator SignedMessageValidator
 	blockRewarder          BlockRewarder
+	logger                 logging.EventLogger
 }
 
 var _ Processor = (*DefaultProcessor)(nil)
@@ -65,6 +67,7 @@ func NewDefaultProcessor() *DefaultProcessor {
 	return &DefaultProcessor{
 		signedMessageValidator: NewDefaultMessageValidator(),
 		blockRewarder:          NewDefaultBlockRewarder(),
+		logger:                 logging.Logger("consensus/processor"),
 	}
 }
 
@@ -73,6 +76,7 @@ func NewConfiguredProcessor(validator SignedMessageValidator, rewarder BlockRewa
 	return &DefaultProcessor{
 		signedMessageValidator: validator,
 		blockRewarder:          rewarder,
+		logger:                 logging.Logger("consensus/processor"),
 	}
 }
 
@@ -322,7 +326,7 @@ func (p *DefaultProcessor) ApplyMessage(ctx context.Context, st state.Tree, vms 
 		// includes errInsufficientFunds because we don't want the message
 		// to be replayable.
 		executionError = err
-		log.Infof("ApplyMessage failed: %s %s", executionError, msg.String())
+		p.logger.Infof("ApplyMessage failed: %s %s", executionError, msg.String())
 	}
 
 	// At this point we consider the message successfully applied so inc
@@ -355,83 +359,6 @@ var (
 	// TODO we'll eventually handle sending to self.
 	errSelfSend = errors.NewRevertError("cannot send to self")
 )
-
-// CallQueryMethod calls a method on an actor in the given state tree. It does
-// not make any changes to the state/blockchain and is useful for interrogating
-// actor state. Block height bh is optional; some methods will ignore it.
-func CallQueryMethod(ctx context.Context, st state.Tree, vms vm.StorageMap, to address.Address, method string, params []byte, from address.Address, optBh *types.BlockHeight) ([][]byte, uint8, error) {
-	toActor, err := st.GetActor(ctx, to)
-	if err != nil {
-		return nil, 1, errors.ApplyErrorPermanentWrapf(err, "failed to get To actor")
-	}
-
-	// not committing or flushing storage structures guarantees changes won't make it to stored state tree or datastore
-	cachedSt := state.NewCachedStateTree(st)
-
-	msg := &types.Message{
-		From:   from,
-		To:     to,
-		Nonce:  0,
-		Value:  nil,
-		Method: method,
-		Params: params,
-	}
-
-	// Set the gas limit to the max because this message send should always succeed; it doesn't cost gas.
-	gasTracker := vm.NewGasTracker()
-	gasTracker.MsgGasLimit = types.BlockGasLimit
-
-	vmCtxParams := vm.NewContextParams{
-		To:          toActor,
-		Message:     msg,
-		State:       cachedSt,
-		StorageMap:  vms,
-		GasTracker:  gasTracker,
-		BlockHeight: optBh,
-	}
-
-	vmCtx := vm.NewVMContext(vmCtxParams)
-	ret, retCode, err := vm.Send(ctx, vmCtx)
-	return ret, retCode, err
-}
-
-// PreviewQueryMethod estimates the amount of gas that will be used by a method
-// call. It accepts all the same arguments as CallQueryMethod.
-func PreviewQueryMethod(ctx context.Context, st state.Tree, vms vm.StorageMap, to address.Address, method string, params []byte, from address.Address, optBh *types.BlockHeight) (types.GasUnits, error) {
-	toActor, err := st.GetActor(ctx, to)
-	if err != nil {
-		return types.NewGasUnits(0), errors.ApplyErrorPermanentWrapf(err, "failed to get To actor")
-	}
-
-	// not committing or flushing storage structures guarantees changes won't make it to stored state tree or datastore
-	cachedSt := state.NewCachedStateTree(st)
-
-	msg := &types.Message{
-		From:   from,
-		To:     to,
-		Nonce:  0,
-		Value:  nil,
-		Method: method,
-		Params: params,
-	}
-
-	// Set the gas limit to the max because this message send should always succeed; it doesn't cost gas.
-	gasTracker := vm.NewGasTracker()
-	gasTracker.MsgGasLimit = types.BlockGasLimit
-
-	vmCtxParams := vm.NewContextParams{
-		To:          toActor,
-		Message:     msg,
-		State:       cachedSt,
-		StorageMap:  vms,
-		GasTracker:  gasTracker,
-		BlockHeight: optBh,
-	}
-	vmCtx := vm.NewVMContext(vmCtxParams)
-	_, _, err = vm.Send(ctx, vmCtx)
-
-	return vmCtx.GasUnits(), err
-}
 
 // attemptApplyMessage encapsulates the work of trying to apply the message in order
 // to make ApplyMessage more readable. The distinction is that attemptApplyMessage
@@ -564,58 +491,6 @@ func (p *DefaultProcessor) ApplyMessagesAndPayRewards(ctx context.Context, st st
 		}
 	}
 	return ret, nil
-}
-
-// DefaultBlockRewarder pays the block reward from the network actor to the miner's owner.
-type DefaultBlockRewarder struct{}
-
-// NewDefaultBlockRewarder creates a new rewarder that actually pays the appropriate rewards.
-func NewDefaultBlockRewarder() *DefaultBlockRewarder {
-	return &DefaultBlockRewarder{}
-}
-
-var _ BlockRewarder = (*DefaultBlockRewarder)(nil)
-
-// BlockReward transfers the block reward from the network actor to the miner's owner.
-func (br *DefaultBlockRewarder) BlockReward(ctx context.Context, st state.Tree, minerOwnerAddr address.Address) error {
-	cachedTree := state.NewCachedStateTree(st)
-	if err := rewardTransfer(ctx, address.NetworkAddress, minerOwnerAddr, br.BlockRewardAmount(), cachedTree); err != nil {
-		return errors.FaultErrorWrap(err, "Error attempting to pay block reward")
-	}
-	return cachedTree.Commit(ctx)
-}
-
-// GasReward transfers the gas cost reward from the sender actor to the minerOwnerAddr
-func (br *DefaultBlockRewarder) GasReward(ctx context.Context, st state.Tree, minerOwnerAddr address.Address, msg *types.SignedMessage, gas *types.AttoFIL) error {
-	cachedTree := state.NewCachedStateTree(st)
-	if err := rewardTransfer(ctx, msg.From, minerOwnerAddr, gas, cachedTree); err != nil {
-		return errors.FaultErrorWrap(err, "Error attempting to pay gas reward")
-	}
-	return cachedTree.Commit(ctx)
-}
-
-// BlockRewardAmount returns the max FIL value miners can claim as the block reward.
-// TODO this is one of the system parameters that should be configured as part of
-// https://github.com/filecoin-project/go-filecoin/issues/884.
-func (br *DefaultBlockRewarder) BlockRewardAmount() *types.AttoFIL {
-	return types.NewAttoFILFromFIL(1000)
-}
-
-// rewardTransfer retrieves two actors from the given addresses and attempts to transfer the given value from the balance of the first's to the second.
-func rewardTransfer(ctx context.Context, fromAddr, toAddr address.Address, value *types.AttoFIL, st *state.CachedTree) error {
-	fromActor, err := st.GetActor(ctx, fromAddr)
-	if err != nil {
-		return errors.FaultErrorWrap(err, "could not retrieve from actor for reward transfer.")
-	}
-
-	toActor, err := st.GetOrCreateActor(ctx, toAddr, func() (*actor.Actor, error) {
-		return &actor.Actor{}, nil
-	})
-	if err != nil {
-		return errors.FaultErrorWrap(err, "failed to get To actor")
-	}
-
-	return vm.Transfer(fromActor, toActor, value)
 }
 
 func blockGasLimitError(gasTracker *vm.GasTracker) error {

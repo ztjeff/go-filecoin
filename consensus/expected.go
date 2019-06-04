@@ -6,7 +6,6 @@ package consensus
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math/big"
 	"strings"
@@ -15,32 +14,16 @@ import (
 	"github.com/ipfs/go-hamt-ipld"
 	"github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log"
-	"github.com/minio/sha256-simd"
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
 
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
-	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
-	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/metrics/tracing"
 	"github.com/filecoin-project/go-filecoin/proofs"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
 )
-
-var (
-	ticketDomain *big.Int
-	log          = logging.Logger("consensus.expected")
-)
-
-func init() {
-	ticketDomain = &big.Int{}
-	// The size of the ticket domain must equal the size of the Signature (ticket) generated.
-	// Currently this is a secp256k1.Sign signature, which is 65 bytes.
-	ticketDomain.Exp(big.NewInt(2), big.NewInt(65*8), nil)
-	ticketDomain.Sub(ticketDomain, big.NewInt(1))
-}
 
 var (
 	// ErrStateRootMismatch is returned when the computed state root doesn't match the expected result.
@@ -50,39 +33,6 @@ var (
 	// ErrUnorderedTipSets is returned when weight and minticket are the same between two tipsets.
 	ErrUnorderedTipSets = errors.New("trying to order two identical tipsets")
 )
-
-// TicketSigner is an interface for a test signer that can create tickets.
-type TicketSigner interface {
-	GetAddressForPubKey(pk []byte) (address.Address, error)
-	SignBytes(data []byte, signerAddr address.Address) (types.Signature, error)
-}
-
-// TODO none of these parameters are chosen correctly
-// with respect to analysis under a security model:
-// https://github.com/filecoin-project/go-filecoin/issues/1846
-
-// ECV is the constant V defined in the EC spec.
-const ECV uint64 = 10
-
-// ECPrM is the power ratio magnitude defined in the EC spec.
-const ECPrM uint64 = 100
-
-// AncestorRoundsNeeded is the number of rounds of the ancestor chain needed
-// to process all state transitions.
-//
-// TODO: If the following PR is merged - and the network doesn't define a
-// largest sector size - this constant will need to be reconsidered.
-// https://github.com/filecoin-project/specs/pull/318
-const AncestorRoundsNeeded = miner.LargestSectorSizeProvingPeriodBlocks + miner.LargestSectorGenerationAttackThresholdBlocks
-
-// A Processor processes all the messages in a block or tip set.
-type Processor interface {
-	// ProcessBlock processes all messages in a block.
-	ProcessBlock(ctx context.Context, st state.Tree, vms vm.StorageMap, blk *types.Block, ancestors []types.TipSet) ([]*ApplicationResult, error)
-
-	// ProcessTipSet processes all messages in a tip set.
-	ProcessTipSet(ctx context.Context, st state.Tree, vms vm.StorageMap, ts types.TipSet, ancestors []types.TipSet) (*ProcessTipSetResponse, error)
-}
 
 // Expected implements expected consensus.
 type Expected struct {
@@ -107,6 +57,8 @@ type Expected struct {
 	genesisCid cid.Cid
 
 	verifier proofs.Verifier
+
+	logger logging.EventLogger
 }
 
 // Ensure Expected satisfies the Protocol interface at compile time.
@@ -115,21 +67,21 @@ var _ Protocol = (*Expected)(nil)
 // NewExpected is the constructor for the Expected consenus.Protocol module.
 func NewExpected(cs *hamt.CborIpldStore, bs blockstore.Blockstore, processor Processor, v BlockValidator, pt PowerTableView, gCid cid.Cid, verifier proofs.Verifier) *Expected {
 	return &Expected{
-		cstore:       cs,
-		bstore:       bs,
-		processor:    processor,
 		PwrTableView: pt,
-		genesisCid:   gCid,
-		verifier:     verifier,
-		validator:    v,
+
+		bstore:     bs,
+		cstore:     cs,
+		genesisCid: gCid,
+		logger:     logging.Logger("consensus/expected"),
+		processor:  processor,
+		validator:  v,
+		verifier:   verifier,
 	}
 }
 
 // Weight returns the EC weight of this TipSet in uint64 encoded fixed point
 // representation.
 func (c *Expected) Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) (uint64, error) {
-	ctx = log.Start(ctx, "Expected.Weight")
-	log.LogKV(ctx, "Weight", ts.String())
 	if ts.Len() == 1 && ts.At(0).Cid().Equals(c.genesisCid) {
 		return uint64(0), nil
 	}
@@ -285,55 +237,6 @@ func (c *Expected) validateMining(ctx context.Context, st state.Tree, ts types.T
 	return nil
 }
 
-// IsWinningTicket fetches miner power & total power, returns true if it's a winning ticket, false if not,
-//    errors out if minerPower or totalPower can't be found.
-//    See https://github.com/filecoin-project/specs/blob/master/expected-consensus.md
-//    for an explanation of the math here.
-func IsWinningTicket(ctx context.Context, bs blockstore.Blockstore, ptv PowerTableView, st state.Tree,
-	ticket types.Signature, miner address.Address) (bool, error) {
-
-	totalPower, err := ptv.Total(ctx, st, bs)
-	if err != nil {
-		return false, errors.Wrap(err, "Couldn't get totalPower")
-	}
-
-	minerPower, err := ptv.Miner(ctx, st, bs, miner)
-	if err != nil {
-		return false, errors.Wrap(err, "Couldn't get minerPower")
-	}
-
-	return CompareTicketPower(ticket, minerPower, totalPower), nil
-}
-
-// CompareTicketPower abstracts the actual comparison logic so it can be used by some test
-// helpers
-func CompareTicketPower(ticket types.Signature, minerPower *types.BytesAmount, totalPower *types.BytesAmount) bool {
-	lhs := &big.Int{}
-	lhs.SetBytes(ticket)
-	lhs.Mul(lhs, totalPower.BigInt())
-	rhs := &big.Int{}
-	rhs.Mul(minerPower.BigInt(), ticketDomain)
-	return lhs.Cmp(rhs) < 0
-}
-
-// CreateChallengeSeed creates/recreates the block challenge for purposes of validation.
-//   TODO -- in general this won't work with only the base tipset.
-//     We'll potentially need some chain manager utils, similar to
-//     the State function, to sample further back in the chain.
-func CreateChallengeSeed(parents types.TipSet, nullBlkCount uint64) (types.PoStChallengeSeed, error) {
-	smallest, err := parents.MinTicket()
-	if err != nil {
-		return types.PoStChallengeSeed{}, err
-	}
-
-	buf := make([]byte, binary.MaxVarintLen64)
-	n := binary.PutUvarint(buf, nullBlkCount)
-	buf = append(smallest, buf[:n]...)
-
-	h := sha256.Sum256(buf)
-	return h, nil
-}
-
 // runMessages applies the messages of all blocks within the input
 // tipset to the input base state.  Messages are applied block by
 // block with blocks sorted by their ticket bytes.  The output state must be
@@ -387,22 +290,4 @@ func (c *Expected) runMessages(ctx context.Context, st state.Tree, vms vm.Storag
 		return nil, errors.Wrap(err, "error validating tipset")
 	}
 	return st, nil
-}
-
-// CreateTicket computes a valid ticket.
-// 	params:  proof  []byte, the proof to sign
-// 			 signerPubKey []byte, the public key for the signer. Must exist in the signer
-//      	 signer, implements TicketSigner interface. Must have signerPubKey in its keyinfo.
-//  returns:  types.Signature ( []byte ), error
-func CreateTicket(proof types.PoStProof, signerPubKey []byte, signer TicketSigner) (types.Signature, error) {
-
-	var ticket types.Signature
-
-	signerAddr, err := signer.GetAddressForPubKey(signerPubKey)
-	if err != nil {
-		return ticket, errors.Wrap(err, "could not get address for signerPubKey")
-	}
-	buf := append(proof[:], signerAddr.Bytes()...)
-	// Don't hash it here; it gets hashed in walletutil.Sign
-	return signer.SignBytes(buf[:], signerAddr)
 }

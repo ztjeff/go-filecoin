@@ -183,6 +183,7 @@ func MakeProofAndWinningTicket(signerPubKey []byte, minerPower *types.BytesAmoun
 		return poStProof, ticket, errors.New("MakeProofAndWinningTicket: minerPower is too small for totalPower to generate a winning ticket")
 	}
 
+	// TODO flagging as this as it can increase test times
 	for {
 		poStProof = MakeRandomPoStProofForTest()
 		ticket, err := consensus.CreateTicket(poStProof, signerPubKey, signer)
