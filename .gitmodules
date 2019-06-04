@@ -1,6 +1,8 @@
 [submodule "bls-signatures/bls-signatures"]
 	path = bls-signatures/bls-signatures
-	url = https://github.com/filecoin-project/bls-signatures.git
+	url = git@github.com:filecoin-project/bls-signatures.git
+	branch = master
 [submodule "proofs/rust-fil-proofs"]
 	path = proofs/rust-fil-proofs
-	url = https://github.com/filecoin-project/rust-fil-proofs.git
+	url = git@github.com:filecoin-project/rust-fil-proofs.git
+	branch = feat/681-idiomatic-exported-api

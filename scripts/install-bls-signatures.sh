@@ -53,7 +53,7 @@ install_local() {
     exit 1
   fi
 
-  git submodule update --init --recursive bls-signatures/bls-signatures
+  git submodule update --init --remote --recursive bls-signatures/bls-signatures
 
   pushd bls-signatures/bls-signatures
 
@@ -71,7 +71,7 @@ install_local() {
   cp bls-signatures/bls-signatures/target/release/libbls_signatures.pc ./bls-signatures/lib/pkgconfig/
 }
 
-if [ -z "$FILECOIN_USE_PRECOMPILED_BLS_SIGNATURES" ]; then
+if [ -z "" ]; then
   echo "using local bls-signatures @ ${RELEASE_SHA1}"
   install_local
 else

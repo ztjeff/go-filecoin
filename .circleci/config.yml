@@ -547,6 +547,7 @@ workflows:
           requires:
             - build_linux
       - functional_test_linux:
+          sector_builder_tests: true
           requires:
             - build_linux
       - build_docker_img:
@@ -833,4 +834,4 @@ commands:
     steps:
       - run:
           name: Update submodules
-          command: git submodule update --init
+          command: git submodule update --init --remote
