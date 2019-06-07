@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ipfs/go-ipfs-files"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-host"
 
 	"github.com/filecoin-project/go-filecoin/tools/fast"
+	"github.com/filecoin-project/go-filecoin/tools/fast/series"
+	lpfc "github.com/filecoin-project/go-filecoin/tools/iptb-plugins/filecoin/local"
+	"github.com/filecoin-project/go-filecoin/tools/network-randomizer/constants"
+	"github.com/filecoin-project/go-filecoin/tools/network-randomizer/plumbing"
 	"github.com/filecoin-project/go-filecoin/tools/network-randomizer/repo"
 	"github.com/filecoin-project/go-filecoin/types"
 )
@@ -21,7 +26,7 @@ type Node struct {
 	// it contains all persistent artifacts of the filecoin node
 	Repo repo.Repo
 
-	FastEnv fast.Environment
+	PlumbingAPI *plumbing.API
 }
 
 // Config is a helper to aid in the construction of a filecoin node.
@@ -76,26 +81,72 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 		return nil, err
 	}
 
-	nd := &Node{
-		host:    peerHost,
-		Repo:    nc.Repo,
+	if err := setupGenesisNode(ctx, fastEnv); err != nil {
+		return nil, err
+	}
+
+	plumbingAPI := plumbing.New(&plumbing.APIDeps{
 		FastEnv: fastEnv,
+	})
+
+	nd := &Node{
+		host:        peerHost,
+		Repo:        nc.Repo,
+		PlumbingAPI: plumbingAPI,
 	}
 
 	return nd, nil
 }
 
+func setupGenesisNode(ctx context.Context, env fast.Environment) error {
+	// Setup localfilecoin plugin options
+	options := make(map[string]string)
+	options[lpfc.AttrLogJSON] = "0"                      // Disable JSON logs
+	options[lpfc.AttrLogLevel] = "4"                     // Set log level to Info
+	options[lpfc.AttrFilecoinBinary] = constants.BinPath // Use the repo binary
+
+	genesisURI := env.GenesisCar()
+	genesisMiner, err := env.GenesisMiner()
+	if err != nil {
+		return err
+	}
+
+	fastenvOpts := fast.EnvironmentOpts{
+		InitOpts:   []fast.ProcessInitOption{fast.POGenesisFile(genesisURI)},
+		DaemonOpts: []fast.ProcessDaemonOption{fast.POBlockTime(constants.BlockTime)},
+	}
+
+	ctx = series.SetCtxSleepDelay(ctx, constants.BlockTime)
+
+	// The genesis process is the filecoin node that loads the miner that is
+	// define with power in the genesis block, and the prefunnded wallet
+	genesis, err := env.NewProcess(ctx, lpfc.PluginName, options, fastenvOpts)
+	if err != nil {
+		return err
+	}
+
+	err = series.SetupGenesisNode(ctx, genesis, genesisMiner.Address, files.NewReaderFile(genesisMiner.Owner))
+	if err != nil {
+		return err
+	}
+
+	if err := genesis.MiningStart(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Start boots up the node.
 func (node *Node) Start(ctx context.Context) error {
 	fmt.Println("starting Filecoin Network Randomizer :)")
-	fmt.Printf("Environment GenesisURL: %s\n", node.FastEnv.GenesisCar())
+	fmt.Printf("Environment GenesisURL: %s\n", node.PlumbingAPI.FastEnvironment(ctx).GenesisCar())
 	return nil
 }
 
 // Stop initiates the shutdown of the node.
 func (node *Node) Stop(ctx context.Context) {
 
-	if err := node.FastEnv.Teardown(ctx); err != nil {
+	if err := node.PlumbingAPI.FastEnvironment(ctx).Teardown(ctx); err != nil {
 		fmt.Printf("error tearing down environment: %s\n", err)
 	}
 

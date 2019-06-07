@@ -58,9 +58,18 @@ var rootSubcmdsLocal = map[string]*cmds.Command{
 	//"version": versionCmd,
 }
 
+var rootSubcmdsDaemon = map[string]*cmds.Command{
+	"process": processCmd,
+}
+
 func init() {
 	for k, v := range rootSubcmdsLocal {
 		rootCmd.Subcommands[k] = v
+	}
+
+	for k, v := range rootSubcmdsDaemon {
+		rootCmd.Subcommands[k] = v
+		rootCmdDaemon.Subcommands[k] = v
 	}
 
 }

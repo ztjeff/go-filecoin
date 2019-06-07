@@ -91,7 +91,8 @@ func runAPIAndWait(ctx context.Context, nd *node.Node, config *config.Config, re
 	defer nd.Stop(ctx)
 
 	servenv := &Env{
-		ctx: context.Background(),
+		ctx:         context.Background(),
+		plumbingAPI: nd.PlumbingAPI,
 	}
 
 	cfg := cmdhttp.NewServerConfig()

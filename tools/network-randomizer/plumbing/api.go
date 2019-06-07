@@ -6,11 +6,11 @@ import (
 )
 
 type API struct {
-	fastEnv *fast.Environment
+	fastEnv fast.Environment
 }
 
 type APIDeps struct {
-	FastEnv *fast.Environment
+	FastEnv fast.Environment
 }
 
 func New(deps *APIDeps) *API {
@@ -19,6 +19,6 @@ func New(deps *APIDeps) *API {
 	}
 }
 
-func (api *API) FastEnvironment(ctx context.Context) *fast.Environment {
+func (api *API) FastEnvironment(ctx context.Context) fast.Environment {
 	return api.fastEnv
 }
