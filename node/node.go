@@ -29,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/opts"
 	p2pmetrics "github.com/libp2p/go-libp2p-metrics"
 	libp2ppeer "github.com/libp2p/go-libp2p-peer"
+	peer "github.com/libp2p/go-libp2p-peer"
 	libp2pps "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-routing"
 	rhost "github.com/libp2p/go-libp2p/p2p/host/routed"
@@ -88,10 +89,11 @@ type nodeChainReader interface {
 	HeadEvents() *ps.PubSub
 	Load(context.Context) error
 	Stop()
+	AddBlock(ctx context.Context, blk *types.Block) error
 }
 
 type nodeChainSyncer interface {
-	HandleNewTipset(ctx context.Context, tipsetCids types.TipSetKey) error
+	HandleNewTipset(ctx context.Context, from peer.ID, tipsetCids types.TipSetKey) error
 }
 
 // Node represents a full Filecoin node.
@@ -386,7 +388,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	//nwork := bsnet.NewFromIpfsHost(innerHost, router)
 	bswap := bitswap.New(ctx, nwork, bs)
 	bservice := bserv.New(bs, bswap)
-	fetcher := net.NewBitswapFetcher(ctx, bservice, blkValid)
+	//fetcher := net.NewBitswapFetcher(ctx, bservice, blkValid)
 
 	cstOffline := hamt.CborIpldStore{Blocks: bserv.New(bs, offline.Exchange(bs))}
 	genCid, err := readGenesisCid(nc.Repo.Datastore())
@@ -428,7 +430,10 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	fcWallet := wallet.New(backend)
 
 	// only the syncer gets the storage which is online connected
-	chainSyncer := chain.NewSyncer(&cstOffline, nodeConsensus, chainStore, fetcher, chain.Syncing)
+	bss := chain.NewBlockSyncService(chainStore)
+	peerHost.SetStreamHandler(chain.BlockSyncProtocolID, bss.HandleStream)
+	bsync := chain.NewBlockSyncClient(bswap.(*bitswap.Bitswap), peerHost.NewStream)
+	chainSyncer := chain.NewSyncer(&cstOffline, nodeConsensus, chainStore, bsync, chain.Syncing)
 	msgPool := core.NewMessagePool(nc.Repo.Config().Mpool, consensus.NewIngestionValidator(chainState, nc.Repo.Config().Mpool))
 	inbox := core.NewInbox(msgPool, core.InboxMaxAgeTipsets, chainStore)
 
@@ -462,7 +467,6 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 		Syncer:       chainSyncer,
 		PowerTable:   powerTable,
 		PorcelainAPI: PorcelainAPI,
-		Fetcher:      fetcher,
 		Exchange:     bswap,
 		host:         peerHost,
 		Inbox:        inbox,
@@ -519,7 +523,7 @@ func (node *Node) Start(ctx context.Context) error {
 	// Start up 'hello' handshake service
 	syncCallBack := func(pid libp2ppeer.ID, cids []cid.Cid, height uint64) {
 		cidSet := types.NewTipSetKey(cids...)
-		err := node.Syncer.HandleNewTipset(context.Background(), cidSet)
+		err := node.Syncer.HandleNewTipset(context.Background(), pid, cidSet)
 		if err != nil {
 			log.Infof("error handling blocks: %s", cidSet.String())
 		}

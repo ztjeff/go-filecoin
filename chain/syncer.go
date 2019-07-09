@@ -8,6 +8,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 	logging "github.com/ipfs/go-log"
+	peer "github.com/libp2p/go-libp2p-peer"
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
 
@@ -74,6 +75,7 @@ const (
 type syncerChainReader interface {
 	BlockHeight() (uint64, error)
 	GetBlock(context.Context, cid.Cid) (*types.Block, error)
+	GetBlocks(context.Context, types.TipSetKey) ([]*types.Block, error)
 	GetHead() types.TipSetKey
 	GetTipSet(tsKey types.TipSetKey) (types.TipSet, error)
 	GetTipSetStateRoot(tsKey types.TipSetKey) (cid.Cid, error)
@@ -83,6 +85,8 @@ type syncerChainReader interface {
 	HasTipSetAndStatesWithParentsAndHeight(pTsKey string, h uint64) bool
 	GetTipSetAndStatesByParentsAndHeight(pTsKey string, h uint64) ([]*TipSetAndState, error)
 	HasAllBlocks(ctx context.Context, cs []cid.Cid) bool
+
+	AddBlock(ctx context.Context, blk *types.Block) error
 }
 
 type syncFetcher interface {
@@ -114,7 +118,7 @@ type Syncer struct {
 	mu sync.Mutex
 	// fetcher is the networked block fetching service for fetching blocks
 	// and messages.
-	fetcher syncFetcher
+	bsync *BlockSync
 	// stateStore is the cborStore used for reading and writing state root
 	// to ipld object mappings.
 	stateStore *hamt.CborIpldStore
@@ -131,9 +135,9 @@ type Syncer struct {
 }
 
 // NewSyncer constructs a Syncer ready for use.
-func NewSyncer(cst *hamt.CborIpldStore, c consensus.Protocol, s syncerChainReader, f syncFetcher, syncMode SyncMode) *Syncer {
+func NewSyncer(cst *hamt.CborIpldStore, c consensus.Protocol, s syncerChainReader, bsync *BlockSync, syncMode SyncMode) *Syncer {
 	return &Syncer{
-		fetcher:    f,
+		bsync:      bsync,
 		stateStore: cst,
 		badTipSets: &badTipSetCache{
 			bad: make(map[string]struct{}),
@@ -151,11 +155,29 @@ func NewSyncer(cst *hamt.CborIpldStore, c consensus.Protocol, s syncerChainReade
 // otherwise resolved over the network.  This method will timeout if blocks
 // are unavailable.  This method is all or nothing, it will error if any of the
 // blocks cannot be resolved.
-func (syncer *Syncer) getBlksMaybeFromNet(ctx context.Context, blkCids []cid.Cid) ([]*types.Block, error) {
+func (syncer *Syncer) getBlksMaybeFromNet(ctx context.Context, blkCids []cid.Cid) ([]types.TipSet, error) {
 	ctx, cancel := context.WithTimeout(ctx, blkWaitTime)
 	defer cancel()
+	if syncer.chainStore.HasAllBlocks(ctx, blkCids) {
+		blks, err := syncer.chainStore.GetBlocks(ctx, types.NewTipSetKey(blkCids...))
+		if err != nil {
+			panic(err)
+			return nil, err
+		}
+		nts, err := types.NewTipSet(blks...)
+		if err != nil {
+			return nil, err
+		}
+		return []types.TipSet{nts}, nil
+	}
 
-	return syncer.fetcher.GetBlocks(ctx, blkCids)
+	log.Info("couldn't find blocks locally, asking network")
+	pTs, err := syncer.bsync.GetBlocks(ctx, blkCids, 1)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("got blocks from network: %v", pTs)
+	return pTs, nil
 }
 
 // collectChain resolves the cids of the head tipset and its ancestors to
@@ -195,12 +217,7 @@ func (syncer *Syncer) collectChain(ctx context.Context, tipsetCids types.TipSetK
 			return nil, ErrChainHasBadTipSet
 		}
 
-		blks, err := syncer.getBlksMaybeFromNet(ctx, tipsetCids.ToSlice())
-		if err != nil {
-			return nil, err
-		}
-
-		ts, err := types.NewTipSet(blks...)
+		ts, err := syncer.getBlksMaybeFromNet(ctx, tipsetCids.ToSlice())
 		if err != nil {
 			return nil, err
 		}
@@ -211,8 +228,8 @@ func (syncer *Syncer) collectChain(ctx context.Context, tipsetCids types.TipSetK
 		}
 
 		// Update values to traverse next tipset
-		chain = append([]types.TipSet{ts}, chain...)
-		tipsetCids, err = ts.Parents()
+		chain = append(ts, chain...)
+		tipsetCids, err = ts[0].Parents()
 		if err != nil {
 			return nil, err
 		}
@@ -423,8 +440,8 @@ func (syncer *Syncer) widen(ctx context.Context, ts types.TipSet) (types.TipSet,
 // represent a valid extension. It limits the length of new chains it will
 // attempt to validate and caches invalid blocks it has encountered to
 // help prevent DOS.
-func (syncer *Syncer) HandleNewTipset(ctx context.Context, tipsetCids types.TipSetKey) (err error) {
-	logSyncer.Debugf("Begin fetch and sync of chain with head %v", tipsetCids)
+func (syncer *Syncer) HandleNewTipset(ctx context.Context, from peer.ID, tipsetCids types.TipSetKey) (err error) {
+	logSyncer.Infof("Begin fetch and sync of chain with head %v", tipsetCids)
 	ctx, span := trace.StartSpan(ctx, "Syncer.HandleNewTipset")
 	span.AddAttributes(trace.StringAttribute("tipset", tipsetCids.String()))
 	defer tracing.AddErrorEndSpan(ctx, span, &err)
@@ -436,9 +453,10 @@ func (syncer *Syncer) HandleNewTipset(ctx context.Context, tipsetCids types.TipS
 	defer syncer.mu.Unlock()
 
 	// If the store already has all these blocks the syncer is finished.
-	if syncer.chainStore.HasAllBlocks(ctx, tipsetCids.ToSlice()) {
+	if syncer.chainStore.HasTipSetAndState(ctx, tipsetCids.String()) {
 		return nil
 	}
+	syncer.bsync.AddPeer(from)
 
 	// Walk the chain given by the input blocks back to a known tipset in
 	// the store. This is the only code that may go to the network to

@@ -272,6 +272,10 @@ func (store *Store) GetBlocks(ctx context.Context, cids types.TipSetKey) (blks [
 	return blocks, nil
 }
 
+func (store *Store) AddBlock(ctx context.Context, blk *types.Block) error {
+	return store.putBlk(ctx, blk)
+}
+
 // GetBlock retrieves a block by cid.
 func (store *Store) GetBlock(ctx context.Context, c cid.Cid) (*types.Block, error) {
 	data, err := store.bsPriv.Get(c)
