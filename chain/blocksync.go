@@ -156,11 +156,50 @@ func (bss *BlockSyncService) collectChainSegment(start []cid.Cid, length uint64,
 	}
 }
 
+type RequestHandler interface {
+	SendRequest(context.Context, peer.ID, *BlockSyncRequest) (*BlockSyncResponse, error)
+}
+
 type NewStreamFunc func(ctx context.Context, p peer.ID, pids ...protocol.ID) (inet.Stream, error)
 
-type BlockSync struct {
-	bswap     *bitswap.Bitswap
+type BlockSyncRequestHandler struct {
+	log       logging.EventLogger
 	newStream NewStreamFunc
+}
+
+func NewBlockSyncRequestHandler(newStreamF NewStreamFunc) *BlockSyncRequestHandler {
+	return &BlockSyncRequestHandler{
+		log:       logging.Logger("blocksync/requestHandler"),
+		newStream: newStreamF,
+	}
+}
+
+func (bsrh *BlockSyncRequestHandler) SendRequest(ctx context.Context, p peer.ID, req *BlockSyncRequest) (*BlockSyncResponse, error) {
+	bsrh.log.Infof("Sending request: %s to peer %s", req, p.Pretty())
+
+	s, err := bsrh.newStream(net.WithNoDial(ctx, "should already have connection"), p, BlockSyncProtocolID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := WriteCborRPC(s, req); err != nil {
+		return nil, err
+	}
+
+	var res BlockSyncResponse
+	if err := ReadCborRPC(bufio.NewReader(s), &res); err != nil {
+		return nil, err
+	}
+
+	bsrh.log.Infof("Received response: %s from peer %s", res, p.Pretty())
+
+	return &res, nil
+}
+
+type BlockSync struct {
+	RequestHandler
+
+	bswap *bitswap.Bitswap
 
 	syncPeersLk sync.Mutex
 	syncPeers   map[peer.ID]struct{}
@@ -168,12 +207,12 @@ type BlockSync struct {
 	log logging.EventLogger
 }
 
-func NewBlockSyncClient(bswap *bitswap.Bitswap, newStreamF NewStreamFunc) *BlockSync {
+func NewBlockSyncClient(bswap *bitswap.Bitswap, rh RequestHandler) *BlockSync {
 	return &BlockSync{
-		bswap:     bswap,
-		newStream: newStreamF,
-		syncPeers: make(map[peer.ID]struct{}),
-		log:       logging.Logger("blocksync/client"),
+		bswap:          bswap,
+		RequestHandler: rh,
+		syncPeers:      make(map[peer.ID]struct{}),
+		log:            logging.Logger("blocksync/client"),
 	}
 }
 
@@ -197,7 +236,7 @@ func (bs *BlockSync) FetchTipSets(ctx context.Context, tsKey types.TipSetKey, re
 		Options:       BSOptBlocks,
 	}
 
-	res, err := bs.sendRequestToPeer(ctx, peers[perm[0]], req)
+	res, err := bs.SendRequest(ctx, peers[perm[0]], req)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +263,7 @@ func (bs *BlockSync) FetchTipSets(ctx context.Context, tsKey types.TipSetKey, re
 	}
 }
 
+/*
 func (bs *BlockSync) sendRequestToPeer(ctx context.Context, p peer.ID, req *BlockSyncRequest) (*BlockSyncResponse, error) {
 	bs.log.Infof("Sending request: %s to peer %s", req, p.Pretty())
 
@@ -245,6 +285,7 @@ func (bs *BlockSync) sendRequestToPeer(ctx context.Context, p peer.ID, req *Bloc
 
 	return &res, nil
 }
+*/
 
 func (bs *BlockSync) processBlocksResponse(res *BlockSyncResponse) ([]types.TipSet, error) {
 	bs.log.Infof("processing response %s", res)

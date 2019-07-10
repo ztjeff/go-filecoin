@@ -432,7 +432,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	// only the syncer gets the storage which is online connected
 	bss := chain.NewBlockSyncService(chainStore)
 	peerHost.SetStreamHandler(chain.BlockSyncProtocolID, bss.HandleStream)
-	bsync := chain.NewBlockSyncClient(bswap.(*bitswap.Bitswap), peerHost.NewStream)
+	bsync := chain.NewBlockSyncClient(bswap.(*bitswap.Bitswap), chain.NewBlockSyncRequestHandler(peerHost.NewStream))
 	chainSyncer := chain.NewSyncer(&cstOffline, nodeConsensus, chainStore, bsync, chain.Syncing)
 	msgPool := core.NewMessagePool(nc.Repo.Config().Mpool, consensus.NewIngestionValidator(chainState, nc.Repo.Config().Mpool))
 	inbox := core.NewInbox(msgPool, core.InboxMaxAgeTipsets, chainStore)
