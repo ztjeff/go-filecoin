@@ -158,14 +158,14 @@ func (store *Store) Load(ctx context.Context) (err error) {
 }
 
 // loadHead loads the latest known head from disk.
-func (store *Store) loadHead() (types.SortedCidSet, error) {
-	var emptyCidSet types.SortedCidSet
+func (store *Store) loadHead() (types.TipSetKey, error) {
+	var emptyCidSet types.TipSetKey
 	bb, err := store.ds.Get(headKey)
 	if err != nil {
 		return emptyCidSet, errors.Wrap(err, "failed to read headKey")
 	}
 
-	var cids types.SortedCidSet
+	var cids types.TipSetKey
 	err = cbor.DecodeInto(bb, &cids)
 	if err != nil {
 		return emptyCidSet, errors.Wrap(err, "failed to cast headCids")
@@ -225,13 +225,13 @@ func (store *Store) PutTipSetAndState(ctx context.Context, tsas *TipSetAndState)
 
 // GetTipSet returns the tipset whose block
 // cids correspond to the input sorted cid set.
-func (store *Store) GetTipSet(tsKey types.SortedCidSet) (types.TipSet, error) {
+func (store *Store) GetTipSet(tsKey types.TipSetKey) (types.TipSet, error) {
 	return store.tipIndex.GetTipSet(tsKey.String())
 }
 
 // GetTipSetStateRoot returns the state of the tipset whose block
 // cids correspond to the input sorted cid set.
-func (store *Store) GetTipSetStateRoot(tsKey types.SortedCidSet) (cid.Cid, error) {
+func (store *Store) GetTipSetStateRoot(tsKey types.TipSetKey) (cid.Cid, error) {
 	return store.tipIndex.GetTipSetStateRoot(tsKey.String())
 }
 
@@ -255,7 +255,7 @@ func (store *Store) HasTipSetAndStatesWithParentsAndHeight(pTsKey string, h uint
 }
 
 // GetBlocks retrieves the blocks referenced in the input cid set.
-func (store *Store) GetBlocks(ctx context.Context, cids types.SortedCidSet) (blks []*types.Block, err error) {
+func (store *Store) GetBlocks(ctx context.Context, cids types.TipSetKey) (blks []*types.Block, err error) {
 	ctx, span := trace.StartSpan(ctx, "Store.GetBlocks")
 	span.AddAttributes(trace.StringAttribute("tipset", cids.String()))
 	defer tracing.AddErrorEndSpan(ctx, span, &err)
@@ -329,7 +329,7 @@ func (store *Store) setHeadPersistent(ctx context.Context, ts types.TipSet) erro
 	defer store.mu.Unlock()
 
 	// Ensure consistency by storing this new head on disk.
-	if errInner := store.writeHead(ctx, ts.ToSortedCidSet()); errInner != nil {
+	if errInner := store.writeHead(ctx, ts.Key()); errInner != nil {
 		return errors.Wrap(errInner, "failed to write new Head to datastore")
 	}
 
@@ -339,7 +339,7 @@ func (store *Store) setHeadPersistent(ctx context.Context, ts types.TipSet) erro
 }
 
 // writeHead writes the given cid set as head to disk.
-func (store *Store) writeHead(ctx context.Context, cids types.SortedCidSet) error {
+func (store *Store) writeHead(ctx context.Context, cids types.TipSetKey) error {
 	logStore.Debugf("WriteHead %s", cids.String())
 	val, err := cbor.DumpObject(cids)
 	if err != nil {
@@ -371,15 +371,15 @@ func (store *Store) writeTipSetAndState(tsas *TipSetAndState) error {
 }
 
 // GetHead returns the current head tipset cids.
-func (store *Store) GetHead() types.SortedCidSet {
+func (store *Store) GetHead() types.TipSetKey {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
 	if !store.head.Defined() {
-		return types.SortedCidSet{}
+		return types.TipSetKey{}
 	}
 
-	return store.head.ToSortedCidSet()
+	return store.head.Key()
 }
 
 // BlockHeight returns the chain height of the head tipset.

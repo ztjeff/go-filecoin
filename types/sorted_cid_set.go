@@ -5,131 +5,138 @@ import (
 	"fmt"
 	"sort"
 
-	cid "github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
+	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
 func init() {
-	cbor.RegisterCborType(atlas.BuildEntry(SortedCidSet{}).Transform().
+	// A TipSetKey serializes as a sorted array of CIDs.
+	// Deserialization will sort the CIDs, if they're not already.
+	cbor.RegisterCborType(atlas.BuildEntry(TipSetKey{}).Transform().
 		TransformMarshal(atlas.MakeMarshalTransformFunc(
-			func(s SortedCidSet) ([]cid.Cid, error) {
-				return s.s, nil
+			func(s TipSetKey) ([]cid.Cid, error) {
+				return s.cids, nil
 			})).
 		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(
-			func(s []cid.Cid) (SortedCidSet, error) {
-				for i := 0; i < len(s)-1; i++ {
-					// Note that this will also catch duplicates.
-					if !cidLess(s[i], s[i+1]) {
-						return SortedCidSet{}, fmt.Errorf(
-							"invalid serialization of SortedCidSet - %s not less than %s", s[i].String(), s[i+1].String())
-					}
-				}
-				return SortedCidSet{s: s}, nil
+			func(cids []cid.Cid) (TipSetKey, error) {
+				return NewTipSetKeyFromUnique(cids...)
 			})).
 		Complete())
 }
 
-// SortedCidSet is a set of Cids that is maintained sorted. The externally visible effect as
-// compared to cid.Set is that iteration is cheap and always in-order.
-// Sort order is lexicographic ascending, by serialization of the cid.
-// TODO: This should probably go into go-cid package - see https://github.com/ipfs/go-cid/issues/45.
-type SortedCidSet struct {
-	s []cid.Cid // should be maintained sorted
+// TipSetKey is an immutable set of CIDs forming a unique key for a TipSet.
+// Equal keys will have equivalent iteration order, but note that the CIDs are *not* maintained in
+// the same order as the canonical iteration order of blocks in a tipset (which is by ticket).
+// TipSetKey is a lightweight value type; passing by pointer is usually unnecessary.
+type TipSetKey struct {
+	// The slice is wrapped in a struct to enforce immutability.
+	cids []cid.Cid
 }
 
-// NewSortedCidSet returns a SortedCidSet with the specified items.
-func NewSortedCidSet(ids ...cid.Cid) (res SortedCidSet) {
-	for _, id := range ids {
-		res.Add(id)
+// NewTipSetKey initialises a new TipSetKey.
+// Duplicate CIDs are silently ignored.
+func NewTipSetKey(ids ...cid.Cid) TipSetKey {
+	if len(ids) == 0 {
+		// Empty set is canonically represented by a nil slice rather than zero-length slice
+		// so that a zero-value exactly matches an empty one.
+		return TipSetKey{}
 	}
-	return
-}
 
-// Add adds a cid to the set. Returns true if the item was added (didn't already exist), false
-// otherwise.
-func (s *SortedCidSet) Add(id cid.Cid) bool {
-	idx := s.search(id)
-	if idx < len(s.s) && s.s[idx].Equals(id) {
-		return false
+	cids := make([]cid.Cid, len(ids))
+	copy(cids, ids)
+	sort.Slice(cids, func(i, j int) bool {
+		return cidLess(cids[i], cids[j])
+	})
+
+	if len(cids) >= 2 {
+		// Uniq-ify the sorted array.
+		this, next := 0, 1
+		for next < len(cids) {
+			if cids[next] != cids[this] {
+				this++
+				cids[this] = cids[next]
+			}
+			next++
+		}
+		return TipSetKey{cids[:this+1]}
 	}
-	s.s = append(s.s, cid.Undef)
-	copy(s.s[idx+1:], s.s[idx:])
-	s.s[idx] = id
-	return true
+	return TipSetKey{cids}
 }
 
-// Has returns true if the set contains the specified cid.
-func (s SortedCidSet) Has(id cid.Cid) bool {
-	idx := s.search(id)
-	return idx < len(s.s) && s.s[idx].Equals(id)
+// NewTipSetKeyFromUnique initialises a set with CIDs that are expected to be unique.
+func NewTipSetKeyFromUnique(ids ...cid.Cid) (TipSetKey, error) {
+	s := NewTipSetKey(ids...)
+	if s.Len() != len(ids) {
+		return TipSetKey{}, errors.Errorf("Duplicate CID in %s", ids)
+	}
+	return s, nil
 }
 
-// Len returns the number of items in the set.
-func (s SortedCidSet) Len() int {
-	return len(s.s)
-}
-
-// Empty returns true if the set is empty.
-func (s SortedCidSet) Empty() bool {
+// Empty checks whether the set is empty.
+func (s TipSetKey) Empty() bool {
 	return s.Len() == 0
 }
 
-// Remove removes a cid from the set. Returns true if the item was removed (did in fact exist in
-// the set), false otherwise.
-func (s *SortedCidSet) Remove(id cid.Cid) bool {
-	idx := s.search(id)
-	if idx < len(s.s) && s.s[idx].Equals(id) {
-		copy(s.s[idx:], s.s[idx+1:])
-		s.s = s.s[0 : len(s.s)-1]
-		return true
-	}
-	return false
+// Has checks whether the set contains `id`.
+func (s TipSetKey) Has(id cid.Cid) bool {
+	// Find index of the first CID not less than id.
+	idx := sort.Search(len(s.cids), func(i int) bool {
+		return !cidLess(s.cids[i], id)
+	})
+	return idx < len(s.cids) && s.cids[idx].Equals(id)
 }
 
-// Clear removes all entries from the set.
-func (s *SortedCidSet) Clear() {
-	s.s = s.s[:0]
+// Len returns the number of items in the set.
+func (s TipSetKey) Len() int {
+	return len(s.cids)
+}
+
+// ToSlice returns a slice listing the cids in the set.
+func (s TipSetKey) ToSlice() []cid.Cid {
+	out := make([]cid.Cid, len(s.cids))
+	copy(out, s.cids)
+	return out
 }
 
 // Iter returns an iterator that allows the caller to iterate the set in its sort order.
-func (s SortedCidSet) Iter() SortedCidSetIterator {
-	return SortedCidSetIterator{
-		s: s.s,
+func (s TipSetKey) Iter() TipSetKeyIterator {
+	return TipSetKeyIterator{
+		s: s.cids,
 		i: 0,
 	}
 }
 
-// Equals returns true if the set contains the same items as another set.
-func (s SortedCidSet) Equals(s2 SortedCidSet) bool {
-	if s.Len() != s2.Len() {
+// Equals checks whether the set contains exactly the same CIDs as another.
+func (s TipSetKey) Equals(other TipSetKey) bool {
+	if len(s.cids) != len(other.cids) {
 		return false
 	}
-
-	i1 := s.Iter()
-	i2 := s2.Iter()
-
-	for i := 0; i < s.Len(); i++ {
-		if !i1.Value().Equals(i2.Value()) {
+	for i := 0; i < len(s.cids); i++ {
+		if !s.cids[i].Equals(other.cids[i]) {
 			return false
 		}
 	}
-
 	return true
 }
 
-// Contains checks if s2 is a sub-tipset of s
-func (s *SortedCidSet) Contains(s2 *SortedCidSet) bool {
-	for it := s2.Iter(); !it.Complete(); it.Next() {
-		if !s.Has(it.Value()) {
-			return false
+// ContainsAll checks if another set is a subset of this one.
+func (s *TipSetKey) ContainsAll(other TipSetKey) bool {
+	// Since the slices are sorted we can perform one pass over this set, advancing
+	// the other index index whenever the values match.
+	otherIdx := 0
+	for i := 0; i < s.Len() && otherIdx < other.Len(); i++ {
+		if s.cids[i].Equals(other.cids[otherIdx]) {
+			otherIdx++
 		}
 	}
-	return true
+	// otherIdx is advanced the full length only if every element was found in this set.
+	return otherIdx == other.Len()
 }
 
 // String returns a string listing the cids in the set.
-func (s SortedCidSet) String() string {
+func (s TipSetKey) String() string {
 	out := "{"
 	for it := s.Iter(); !it.Complete(); it.Next() {
 		out = fmt.Sprintf("%s %s", out, it.Value().String())
@@ -137,56 +144,34 @@ func (s SortedCidSet) String() string {
 	return out + " }"
 }
 
-// ToSlice returns a slice listing the cids in the set.
-func (s SortedCidSet) ToSlice() []cid.Cid {
-	out := make([]cid.Cid, s.Len())
-	var i int
-	for it := s.Iter(); !it.Complete(); it.Next() {
-		out[i] = it.Value()
-		i++
-	}
-	return out
-}
-
 // MarshalJSON serializes the set to JSON.
-func (s SortedCidSet) MarshalJSON() ([]byte, error) {
-	return json.Marshal(s.s)
+func (s TipSetKey) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.cids)
 }
 
 // UnmarshalJSON parses JSON into the set.
-func (s *SortedCidSet) UnmarshalJSON(b []byte) error {
-	var ts []cid.Cid
-	if err := json.Unmarshal(b, &ts); err != nil {
+func (s *TipSetKey) UnmarshalJSON(b []byte) error {
+	var cids []cid.Cid
+	if err := json.Unmarshal(b, &cids); err != nil {
 		return err
 	}
-	for i := 0; i < len(ts)-1; i++ {
-		if !cidLess(ts[i], ts[i+1]) {
-			return fmt.Errorf("invalid input - cids not sorted")
-		}
-	}
-	s.s = ts
+	s.cids = cids
 	return nil
 }
 
-func (s SortedCidSet) search(id cid.Cid) int {
-	return sort.Search(len(s.s), func(i int) bool {
-		return !cidLess(s.s[i], id)
-	})
-}
-
-// SortedCidSetIterator is a iterator over a sorted collection of CIDs.
-type SortedCidSetIterator struct {
+// TipSetKeyIterator is a iterator over a sorted collection of CIDs.
+type TipSetKeyIterator struct {
 	s []cid.Cid
 	i int
 }
 
 // Complete returns true if the iterator has reached the end of the set.
-func (si *SortedCidSetIterator) Complete() bool {
+func (si *TipSetKeyIterator) Complete() bool {
 	return si.i >= len(si.s)
 }
 
 // Next advances the iterator to the next item and returns true if there is such an item.
-func (si *SortedCidSetIterator) Next() bool {
+func (si *TipSetKeyIterator) Next() bool {
 	switch {
 	case si.i < len(si.s):
 		si.i++
@@ -199,7 +184,7 @@ func (si *SortedCidSetIterator) Next() bool {
 }
 
 // Value returns the current item for the iterator
-func (si SortedCidSetIterator) Value() cid.Cid {
+func (si TipSetKeyIterator) Value() cid.Cid {
 	switch {
 	case si.i < len(si.s):
 		return si.s[si.i]
