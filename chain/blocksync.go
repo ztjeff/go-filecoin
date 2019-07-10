@@ -20,8 +20,6 @@ import (
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
-var log = logging.Logger("net/blocksync")
-
 const BlockSyncProtocolID = "/fil/sync/blk"
 
 func init() {
@@ -32,7 +30,8 @@ func init() {
 }
 
 type BlockSyncService struct {
-	cs *Store
+	cs  *Store
+	log logging.EventLogger
 }
 
 type BSOptions struct {
@@ -59,11 +58,20 @@ type BlockSyncRequest struct {
 	Options uint64
 }
 
+func (bsr BlockSyncRequest) String() string {
+	opts := ParseBSOptions(bsr.Options)
+	return fmt.Sprintf("Start: %s Length: %d Blks: %t Msgs: %t", bsr.Start, bsr.RequestLength, opts.IncludeBlocks, opts.IncludeMessages)
+}
+
 type BlockSyncResponse struct {
 	Chain []*BSTipSet
 
 	Status  uint
 	Message string
+}
+
+func (bsr BlockSyncResponse) String() string {
+	return fmt.Sprintf("Head: %s Status: %d Message: %s", bsr.Chain[0].Blocks[0].Cid(), bsr.Status, bsr.Message)
 }
 
 type BSTipSet struct {
@@ -72,44 +80,44 @@ type BSTipSet struct {
 
 func NewBlockSyncService(cs *Store) *BlockSyncService {
 	return &BlockSyncService{
-		cs: cs,
+		cs:  cs,
+		log: logging.Logger("blocksync/service"),
 	}
 }
 
 func (bss *BlockSyncService) HandleStream(s inet.Stream) {
 	defer s.Close()
-	log.Info("handling block sync request")
 
 	var req BlockSyncRequest
 	if err := ReadCborRPC(bufio.NewReader(s), &req); err != nil {
-		log.Errorf("failed to read block sync request: %s", err)
+		bss.log.Errorf("failed to read block sync request: %s", err)
 		return
 	}
-	log.Infof("Read request: %v", req)
 
 	resp, err := bss.processRequest(&req)
 	if err != nil {
-		log.Error("failed to process block sync request: ", err)
+		bss.log.Error("failed to process block sync request: ", err)
 		return
 	}
 
 	if err := WriteCborRPC(s, resp); err != nil {
-		log.Error("failed to write back response for handle stream: ", err)
+		bss.log.Error("failed to write back response for handle stream: ", err)
 		return
 	}
 }
 
 func (bss *BlockSyncService) processRequest(req *BlockSyncRequest) (*BlockSyncResponse, error) {
+	bss.log.Infof("processing request: %s", req)
+
 	opts := ParseBSOptions(req.Options)
 	chain, err := bss.collectChainSegment(req.Start, req.RequestLength, opts)
 	if err != nil {
-		log.Error("encountered error while responding to block sync request: ", err)
+		bss.log.Error("encountered error while responding to block sync request: ", err)
 		return &BlockSyncResponse{
 			Status: 203,
 		}, nil
 	}
 
-	log.Info("process request success, chain: %v", chain)
 	return &BlockSyncResponse{
 		Chain:  chain,
 		Status: 0,
@@ -119,14 +127,14 @@ func (bss *BlockSyncService) processRequest(req *BlockSyncRequest) (*BlockSyncRe
 func (bss *BlockSyncService) collectChainSegment(start []cid.Cid, length uint64, opts *BSOptions) ([]*BSTipSet, error) {
 	var bstips []*BSTipSet
 	cur := types.NewTipSetKey(start...)
-	log.Infof("collectChainSegment - start: %v, length %d", start, length)
+	bss.log.Infof("collecting chain length %d starting at %s", length, start)
 	for {
 		var bst BSTipSet
 		ts, err := bss.cs.GetTipSet(cur)
 		if err != nil {
+			bss.log.Warningf("collect chain failed to find %s in chain store", cur.String())
 			return nil, err
 		}
-		log.Infof("got tipset: %v", ts.String())
 
 		bst.Blocks = ts.ToSlice()
 		bstips = append(bstips, &bst)
@@ -137,7 +145,7 @@ func (bss *BlockSyncService) collectChainSegment(start []cid.Cid, length uint64,
 		}
 
 		if uint64(len(bstips)) >= length || tsH == 0 {
-			log.Infof("returning chain segment len: %d", len(bstips))
+			bss.log.Infof("collecting chain complete returning chain length %d starting at %s", length, bstips[0].Blocks[0].Cid())
 			return bstips, nil
 		}
 
@@ -156,6 +164,8 @@ type BlockSync struct {
 
 	syncPeersLk sync.Mutex
 	syncPeers   map[peer.ID]struct{}
+
+	log logging.EventLogger
 }
 
 func NewBlockSyncClient(bswap *bitswap.Bitswap, newStreamF NewStreamFunc) *BlockSync {
@@ -163,6 +173,7 @@ func NewBlockSyncClient(bswap *bitswap.Bitswap, newStreamF NewStreamFunc) *Block
 		bswap:     bswap,
 		newStream: newStreamF,
 		syncPeers: make(map[peer.ID]struct{}),
+		log:       logging.Logger("blocksync/client"),
 	}
 }
 
@@ -176,15 +187,13 @@ func (bs *BlockSync) getPeers() []peer.ID {
 	return out
 }
 
-func (bs *BlockSync) GetBlocks(ctx context.Context, tipset []cid.Cid, count int) ([]types.TipSet, error) {
+func (bs *BlockSync) FetchTipSets(ctx context.Context, tsKey types.TipSetKey, recur int) ([]types.TipSet, error) {
 	peers := bs.getPeers()
 	perm := rand.Perm(len(peers))
 	// TODO: round robin through these peers on error
-
-	log.Infof("Request block %v, length %d, from peer %s", tipset, count, peers[perm[0]])
 	req := &BlockSyncRequest{
-		Start:         tipset,
-		RequestLength: uint64(count),
+		Start:         tsKey.ToSlice(),
+		RequestLength: uint64(recur),
 		Options:       BSOptBlocks,
 	}
 
@@ -195,22 +204,29 @@ func (bs *BlockSync) GetBlocks(ctx context.Context, tipset []cid.Cid, count int)
 
 	switch res.Status {
 	case 0: // Success
-		log.Infof("Got response for block %v, result %v", tipset, res.Chain[0])
-		return bs.processBlocksResponse(req, res)
+		return bs.processBlocksResponse(res)
 	case 101: // Partial Response
-		panic("not handled")
+		err := fmt.Errorf("partial response not handled")
+		bs.log.Errorf("Received response from peer %s, Error: %s", peers[perm[0]], err.Error())
+		return nil, err
 	case 201: // req.Start not found
-		return nil, fmt.Errorf("not found")
+		err := fmt.Errorf("not found")
+		bs.log.Errorf("Received response from peer %s, Error: %s", peers[perm[0]], err.Error())
+		return nil, err
 	case 202: // Go Away
-		panic("not handled")
+		err := fmt.Errorf("go away")
+		bs.log.Errorf("Received response from peer %s, Error: %s", peers[perm[0]], err.Error())
+		return nil, err
 	case 203: // Internal Error
-		return nil, fmt.Errorf("block sync peer errored: %s", res.Message)
+		return nil, fmt.Errorf("Received response from peer %s, Error: %s", peers[perm[0]], res.Message)
 	default:
 		return nil, fmt.Errorf("unrecognized response code")
 	}
 }
 
 func (bs *BlockSync) sendRequestToPeer(ctx context.Context, p peer.ID, req *BlockSyncRequest) (*BlockSyncResponse, error) {
+	bs.log.Infof("Sending request: %s to peer %s", req, p.Pretty())
+
 	s, err := bs.newStream(net.WithNoDial(ctx, "should already have connection"), p, BlockSyncProtocolID)
 	if err != nil {
 		return nil, err
@@ -225,10 +241,13 @@ func (bs *BlockSync) sendRequestToPeer(ctx context.Context, p peer.ID, req *Bloc
 		return nil, err
 	}
 
+	bs.log.Infof("Received response: %s from peer %s", res, p.Pretty())
+
 	return &res, nil
 }
 
-func (bs *BlockSync) processBlocksResponse(req *BlockSyncRequest, res *BlockSyncResponse) ([]types.TipSet, error) {
+func (bs *BlockSync) processBlocksResponse(res *BlockSyncResponse) ([]types.TipSet, error) {
+	bs.log.Infof("processing response %s", res)
 	cur := res.Chain[0]
 
 	curTs, err := types.NewTipSet(cur.Blocks...)
@@ -255,7 +274,6 @@ func (bs *BlockSync) processBlocksResponse(req *BlockSyncRequest, res *BlockSync
 		out = append(out, nextTs)
 		cur = next
 	}
-	log.Infof("processBlockResponse returning %v", out)
 	return out, nil
 }
 
@@ -292,7 +310,5 @@ type ByteReader interface {
 }
 
 func ReadCborRPC(r ByteReader, out interface{}) error {
-	log.Info("Starting Request Read")
-	defer log.Info("Completed Request Read")
 	return cbor.DecodeReader(r, out)
 }

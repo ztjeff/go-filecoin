@@ -171,12 +171,12 @@ func (syncer *Syncer) getBlksMaybeFromNet(ctx context.Context, blkCids []cid.Cid
 		return []types.TipSet{nts}, nil
 	}
 
-	log.Info("couldn't find blocks locally, asking network")
-	pTs, err := syncer.bsync.GetBlocks(ctx, blkCids, 1)
+	logSyncer.Info("couldn't find blocks locally, asking network")
+	pTs, err := syncer.bsync.FetchTipSets(ctx, types.NewTipSetKey(blkCids...), 1)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("got blocks from network: %v", pTs)
+	logSyncer.Infof("got blocks from network: %v", pTs)
 	return pTs, nil
 }
 
