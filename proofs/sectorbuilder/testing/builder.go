@@ -75,7 +75,7 @@ func (b *Builder) Build() Harness {
 		panic(err)
 	}
 
-	class := types.NewSectorClass(types.OneKiBSectorSize)
+	class := types.NewSectorClass(types.TwoHundredFiftySixMiBSectorSize)
 
 	sb, err := sectorbuilder.NewRustSectorBuilder(sectorbuilder.RustSectorBuilderConfig{
 		BlockService:     blockService,
