@@ -7,9 +7,15 @@ import (
 )
 
 // InitAndStart is a quick way to run Init and Start for a filecoin process.
-func InitAndStart(ctx context.Context, node *fast.Filecoin) error {
+func InitAndStart(ctx context.Context, node *fast.Filecoin, fns ...func(context.Context, *fast.Filecoin) error) error {
 	if _, err := node.InitDaemon(ctx); err != nil {
 		return err
+	}
+
+	for _, fn := range fns {
+		if err := fn(ctx, node); err != nil {
+			return err
+		}
 	}
 
 	if _, err := node.StartDaemon(ctx, true); err != nil {

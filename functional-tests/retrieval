@@ -17,6 +17,8 @@ else
     COMMIT_SECTOR_AND_POST_TIMEOUT=3600
 fi
 
+echo $FIXTURES_PATH
+
 go run ./build/*.go build
 
 if [ -z "$2" ]; then
