@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -79,6 +80,105 @@ func TestPaymentBrokerCreateChannel(t *testing.T) {
 	assert.Equal(t, target, channel.Target)
 	assert.Equal(t, types.NewBlockHeight(10), channel.AgreedEol)
 	assert.Equal(t, types.NewBlockHeight(10), channel.Eol)
+}
+
+func TestPaymentBrokerCreateChannelTiming(t *testing.T) {
+	tf.UnitTest(t)
+
+	ctx := context.Background()
+
+	const payers = 1
+	const targets = 1000000
+	const buckets = 1000
+
+	addressGetter := address.NewForTestGetter()
+	payerAddresses := make([]address.Address, payers)
+	for i := 0; i < payers; i++ {
+		payerAddresses[i] = addressGetter()
+	}
+
+	_, st, vms := requireGenesis(ctx, t, payerAddresses...)
+
+	createCumulativeTime := float64(0.0)
+	voucherCumulativeTime := float64(0.0)
+	for i := 0; i < payers*targets; i++ {
+		payer := payerAddresses[i%payers]
+		target := addressGetter()
+
+		pdata := core.MustConvertParams(target, big.NewInt(10))
+
+		msg := types.NewMessage(payer, address.PaymentBrokerAddress, uint64(i), types.NewAttoFIL(big.NewInt(10)), "createChannel", pdata)
+		meteredMessage := types.NewMeteredMessage(*msg, types.NewGasPrice(1), types.NewGasUnits(1000))
+		tracker := vm.NewGasTracker()
+		tracker.ResetForNewMessage(*meteredMessage)
+		cst := state.NewCachedStateTree(st)
+		paymentBroker, err := cst.GetActor(ctx, address.PaymentBrokerAddress)
+		require.NoError(t, err)
+
+		from, err := cst.GetActor(ctx, payer)
+		require.NoError(t, err)
+
+		vmctx := vm.NewVMContext(vm.NewContextParams{
+			From:        from,
+			To:          paymentBroker,
+			Message:     msg,
+			State:       cst,
+			StorageMap:  vms,
+			GasTracker:  tracker,
+			BlockHeight: types.NewBlockHeight(1),
+		})
+
+		pb := &Actor{}
+
+		start := time.Now()
+		chid, _, err := pb.CreateChannel(vmctx, target, types.NewBlockHeight(1000))
+		//result, err := processor.ApplyMessage(ctx, st, vms, smsg, nil, types.NewBlockHeight(0), tracker, nil)
+		require.NoError(t, err)
+		createCumulativeTime += time.Since(start).Seconds()
+
+		cst.Commit(ctx)
+		vms.Flush()
+		st.Flush(ctx)
+
+		vmctx = vm.NewVMContext(vm.NewContextParams{
+			From:        from,
+			To:          paymentBroker,
+			Message:     msg,
+			State:       cst,
+			StorageMap:  vms,
+			GasTracker:  tracker,
+			BlockHeight: types.NewBlockHeight(1),
+		})
+
+		start = time.Now()
+		_, _, err = pb.Voucher(vmctx, chid, types.NewAttoFIL(big.NewInt(1)), types.NewBlockHeight(1000), nil)
+		require.NoError(t, err)
+		voucherCumulativeTime += time.Since(start).Seconds()
+
+		cst.Commit(ctx)
+		vms.Flush()
+		st.Flush(ctx)
+
+		if i%buckets == 0 {
+			//pb, err := st.GetActor(ctx, address.PaymentBrokerAddress)
+			//require.NoError(t, err)
+			//
+			//storage := vms.NewStorage(address.PaymentBrokerAddress, pb)
+			//
+			//lookup, err := actor.LoadLookup(ctx, storage, storage.Head())
+			//require.NoError(t, err)
+			//
+			//values, err := lookup.Values(ctx)
+			//require.NoError(t, err)
+
+			fmt.Printf("%d, %f, %f\n", i, createCumulativeTime/buckets, voucherCumulativeTime/buckets)
+			createCumulativeTime = float64(0.0)
+			voucherCumulativeTime = float64(0.0)
+		}
+
+		require.NoError(t, err)
+
+	}
 }
 
 func TestPaymentBrokerUpdate(t *testing.T) {

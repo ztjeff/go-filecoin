@@ -2,7 +2,6 @@ package paymentbroker
 
 import (
 	"context"
-
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 	cbor "github.com/ipfs/go-ipld-cbor"
