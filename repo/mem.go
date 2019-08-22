@@ -101,6 +101,10 @@ func (mr *MemRepo) Close() error {
 	return nil
 }
 
+func (mr *MemRepo) ClearTempDatastore() error {
+	return nil
+}
+
 // SetAPIAddr writes the address of the running API to memory.
 func (mr *MemRepo) SetAPIAddr(addr string) error {
 	mr.apiAddress = addr

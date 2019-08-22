@@ -418,8 +418,10 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	// set up bitswap
 	nwork := bsnet.NewFromIpfsHost(peerHost, router)
 	//nwork := bsnet.NewFromIpfsHost(innerHost, router)
-	bswap := bitswap.New(ctx, nwork, bs)
-	bservice := bserv.New(bs, bswap)
+
+	tempBs := bstore.NewBlockstore(nc.Repo.TempDatastore())
+	bswap := bitswap.New(ctx, nwork, tempBs)
+	bservice := bserv.New(tempBs, bswap)
 
 	graphsyncNetwork := gsnet.NewFromLibp2pHost(peerHost)
 	bridge := ipldbridge.NewIPLDBridge()

@@ -54,4 +54,7 @@ type Repo interface {
 
 	// Close shuts down the repo.
 	Close() error
+
+	// Purge the temp datastore
+	ClearTempDatastore() error
 }

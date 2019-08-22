@@ -339,6 +339,11 @@ func (r *FSRepo) Close() error {
 	return r.lockfile.Close()
 }
 
+// ClearTempDatastore purges all data from the temp datastore
+func (r *FSRepo) ClearTempDatastore() error {
+	return r.tempDs.(*badgerds.Datastore).DB.DropAll()
+}
+
 func (r *FSRepo) removeFile(path string) error {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
