@@ -22,7 +22,6 @@ import (
 	gsstoreutil "github.com/ipfs/go-graphsync/storeutil"
 	"github.com/ipfs/go-hamt-ipld"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
-	"github.com/ipfs/go-ipfs-exchange-interface"
 	"github.com/ipfs/go-ipfs-exchange-offline"
 	offroute "github.com/ipfs/go-ipfs-routing/offline"
 	logging "github.com/ipfs/go-log"
@@ -172,9 +171,6 @@ type Node struct {
 
 	// Fetcher is the interface for fetching data from nodes.
 	Fetcher net.Fetcher
-
-	// Exchange is the interface for fetching data from other nodes.
-	Exchange exchange.Interface
 
 	// Blockstore is the un-networked blocks interface
 	Blockstore bstore.Blockstore
@@ -417,11 +413,13 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 
 	// set up bitswap
 	nwork := bsnet.NewFromIpfsHost(peerHost, router)
-	//nwork := bsnet.NewFromIpfsHost(innerHost, router)
+
+	//bswap := bitswap.New(ctx, nwork, bs)
+	bservice := bserv.New(bs, offline.Exchange(bs))
 
 	tempBs := bstore.NewBlockstore(nc.Repo.TempDatastore())
-	bswap := bitswap.New(ctx, nwork, tempBs)
-	bservice := bserv.New(tempBs, bswap)
+	tempBswap := bitswap.New(ctx, nwork, tempBs)
+	tempBservice := bserv.New(tempBs, tempBswap)
 
 	graphsyncNetwork := gsnet.NewFromLibp2pHost(peerHost)
 	bridge := ipldbridge.NewIPLDBridge()
@@ -501,7 +499,6 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 		PowerTable:   powerTable,
 		PeerTracker:  peerTracker,
 		Fetcher:      fetcher,
-		Exchange:     bswap,
 		host:         peerHost,
 		Inbox:        inbox,
 		OfflineMode:  nc.OfflineMode,
@@ -513,11 +510,11 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	}
 
 	nd.PorcelainAPI = porcelain.New(plumbing.New(&plumbing.APIDeps{
-		Bitswap:       bswap,
 		Chain:         chainState,
 		Sync:          cst.NewChainSyncProvider(chainSyncer),
 		Config:        cfg.NewConfig(nc.Repo),
 		DAG:           dag.NewDAG(merkledag.NewDAGService(bservice)),
+		TempDAG:       dag.NewDAG(merkledag.NewDAGService(tempBservice)),
 		Deals:         strgdls.New(nc.Repo.DealsDatastore()),
 		Expected:      nodeConsensus,
 		MsgPool:       msgPool,
@@ -1061,7 +1058,6 @@ func initSectorBuilderForNode(ctx context.Context, node *Node) (sectorbuilder.Se
 		return nil, err
 	}
 	cfg := sectorbuilder.RustSectorBuilderConfig{
-		BlockService:     node.blockservice,
 		LastUsedSectorID: lastUsedSectorID,
 		MetadataDir:      stagingDir,
 		MinerAddr:        minerAddr,

@@ -11,25 +11,7 @@ var dagCmd = &cmds.Command{
 		Tagline: "Interact with IPLD DAG objects.",
 	},
 	Subcommands: map[string]*cmds.Command{
-		"get":         dagGetCmd,
 		"clear-cache": dagClearCacheCmd,
-	},
-}
-
-var dagGetCmd = &cmds.Command{
-	Helptext: cmdkit.HelpText{
-		Tagline: "Get a DAG node by its CID",
-	},
-	Arguments: []cmdkit.Argument{
-		cmdkit.StringArg("ref", true, false, "CID of object to get"),
-	},
-	Run: func(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) error {
-		out, err := GetPorcelainAPI(env).DAGGetNode(req.Context, req.Arguments[0])
-		if err != nil {
-			return err
-		}
-
-		return re.Emit(out)
 	},
 }
 

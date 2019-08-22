@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/mining"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/pkg/errors"
 )
 
 type miningChainReader interface {

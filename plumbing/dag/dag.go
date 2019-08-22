@@ -9,8 +9,6 @@ import (
 	chunk "github.com/ipfs/go-ipfs-chunker"
 	ipld "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
-	"github.com/ipfs/go-path"
-	"github.com/ipfs/go-path/resolver"
 	"github.com/ipfs/go-unixfs"
 	imp "github.com/ipfs/go-unixfs/importer"
 	uio "github.com/ipfs/go-unixfs/io"
@@ -28,36 +26,37 @@ func NewDAG(dserv ipld.DAGService) *DAG {
 	}
 }
 
-// GetNode returns the associated DAG node for the passed in CID.
-func (dag *DAG) GetNode(ctx context.Context, ref string) (interface{}, error) {
-	parsedRef, err := path.ParsePath(ref)
-	if err != nil {
-		return nil, err
-	}
-
-	resolver := resolver.NewBasicResolver(dag.dserv)
-
-	objc, rem, err := resolver.ResolveToLastNode(ctx, parsedRef)
-	if err != nil {
-		return nil, err
-	}
-
-	obj, err := dag.dserv.Get(ctx, objc)
-	if err != nil {
-		return nil, err
-	}
-
-	var out interface{} = obj
-	if len(rem) > 0 {
-		final, _, err := obj.Resolve(rem)
-		if err != nil {
-			return nil, err
-		}
-		out = final
-	}
-
-	return out, nil
-}
+//
+//// GetNode returns the associated DAG node for the passed in CID.
+//func (dag *DAG) GetNode(ctx context.Context, ref string) (interface{}, error) {
+//	parsedRef, err := path.ParsePath(ref)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	resolver := resolver.NewBasicResolver(dag.dserv)
+//
+//	objc, rem, err := resolver.ResolveToLastNode(ctx, parsedRef)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	obj, err := dag.dserv.Get(ctx, objc)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var out interface{} = obj
+//	if len(rem) > 0 {
+//		final, _, err := obj.Resolve(rem)
+//		if err != nil {
+//			return nil, err
+//		}
+//		out = final
+//	}
+//
+//	return out, nil
+//}
 
 // GetFileSize returns the file size for a given Cid
 func (dag *DAG) GetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
@@ -101,4 +100,8 @@ func (dag *DAG) ImportData(ctx context.Context, data io.Reader) (ipld.Node, erro
 		return nil, err
 	}
 	return nd, bufds.Commit()
+}
+
+func (dag *DAG) Fetch(ctx context.Context, cid cid.Cid) error {
+	return merkledag.FetchGraph(ctx, cid, dag.dserv)
 }

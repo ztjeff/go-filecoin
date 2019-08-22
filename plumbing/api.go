@@ -5,10 +5,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/ipfs/go-bitswap"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore/query"
-	"github.com/ipfs/go-ipfs-exchange-interface"
 	ipld "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/metrics"
@@ -44,11 +42,11 @@ import (
 type API struct {
 	logger logging.EventLogger
 
-	bitswap       exchange.Interface
 	chain         *cst.ChainStateProvider
 	syncer        *cst.ChainSyncProvider
 	config        *cfg.Config
 	dag           *dag.DAG
+	tempDag       *dag.DAG
 	expected      consensus.Protocol
 	msgPool       *core.MessagePool
 	msgPreviewer  *msg.Previewer
@@ -63,11 +61,11 @@ type API struct {
 
 // APIDeps contains all the API's dependencies
 type APIDeps struct {
-	Bitswap       exchange.Interface
 	Chain         *cst.ChainStateProvider
 	Sync          *cst.ChainSyncProvider
 	Config        *cfg.Config
 	DAG           *dag.DAG
+	TempDAG       *dag.DAG
 	Deals         *strgdls.Store
 	Expected      consensus.Protocol
 	MsgPool       *core.MessagePool
@@ -85,11 +83,11 @@ func New(deps *APIDeps) *API {
 	return &API{
 		logger: logging.Logger("porcelain"),
 
-		bitswap:       deps.Bitswap,
 		chain:         deps.Chain,
 		syncer:        deps.Sync,
 		config:        deps.Config,
 		dag:           deps.DAG,
+		tempDag:       deps.TempDAG,
 		expected:      deps.Expected,
 		msgPool:       deps.MsgPool,
 		msgPreviewer:  deps.MsgPreviewer,
@@ -349,37 +347,32 @@ func (api *API) WalletExport(addrs []address.Address) ([]*types.KeyInfo, error) 
 	return api.wallet.Export(addrs)
 }
 
-// DAGGetNode returns the associated DAG node for the passed in CID.
-func (api *API) DAGGetNode(ctx context.Context, ref string) (interface{}, error) {
-	return api.dag.GetNode(ctx, ref)
-}
-
 // DAGGetFileSize returns the file size for a given Cid
 func (api *API) DAGGetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
-	return api.dag.GetFileSize(ctx, c)
+	return api.tempDag.GetFileSize(ctx, c)
 }
 
 // DAGCat returns an iostream with a piece of data stored on the merkeldag with
 // the given cid.
 func (api *API) DAGCat(ctx context.Context, c cid.Cid) (io.Reader, error) {
-	return api.dag.Cat(ctx, c)
+	return api.tempDag.Cat(ctx, c)
 }
 
-// DAGImportData adds data from an io reader to the merkledag and returns the
+// TempDAGImportData adds data from an io reader to the temporary data storemerkledag and returns the
 // Cid of the given data. Once the data is in the DAG, it can fetched from the
 // node via Bitswap and a copy will be kept in the blockstore.
-func (api *API) DAGImportData(ctx context.Context, data io.Reader) (ipld.Node, error) {
-	return api.dag.ImportData(ctx, data)
+func (api *API) TempDAGImportData(ctx context.Context, data io.Reader) (ipld.Node, error) {
+	return api.tempDag.ImportData(ctx, data)
+}
+
+// TempDag returns the piece data store/dag
+func (api *API) TempDag() *dag.DAG {
+	return api.tempDag
 }
 
 // ClearTempDatastore clears the temporary datastore used mainly by bitswap
 func (api *API) ClearTempDatastore(ctx context.Context) error {
 	return api.config.Repo().ClearTempDatastore()
-}
-
-// BitswapGetStats returns bitswaps stats.
-func (api *API) BitswapGetStats(ctx context.Context) (*bitswap.Stat, error) {
-	return api.bitswap.(*bitswap.Bitswap).Stat()
 }
 
 // SectorBuilder returns the sector builder

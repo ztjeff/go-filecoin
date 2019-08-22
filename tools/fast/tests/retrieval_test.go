@@ -81,6 +81,10 @@ func TestRetrievalLocalNetwork(t *testing.T) {
 	miner, err := env.NewProcess(ctx, localplugin.PluginName, options, fastenvOpts)
 	require.NoError(t, err)
 
+	defer func() {
+		require.NoError(t, miner.Shell())
+	}()
+
 	client, err := env.NewProcess(ctx, localplugin.PluginName, options, fastenvOpts)
 	require.NoError(t, err)
 

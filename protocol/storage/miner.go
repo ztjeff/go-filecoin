@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"strconv"
 	"sync"
@@ -13,10 +14,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	cbor "github.com/ipfs/go-ipld-cbor"
-	"github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
-	dag "github.com/ipfs/go-merkledag"
-	uio "github.com/ipfs/go-unixfs/io"
 	"github.com/libp2p/go-libp2p-core/host"
 	inet "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -27,6 +25,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/address"
 	cbu "github.com/filecoin-project/go-filecoin/cborutil"
 	"github.com/filecoin-project/go-filecoin/exec"
+	"github.com/filecoin-project/go-filecoin/plumbing/dag"
 	"github.com/filecoin-project/go-filecoin/porcelain"
 	"github.com/filecoin-project/go-filecoin/proofs"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
@@ -89,6 +88,7 @@ type minerPorcelain interface {
 	MessageWait(ctx context.Context, msgCid cid.Cid, cb func(*types.Block, *types.SignedMessage, *types.MessageReceipt) error) error
 	MinerGetWorkerAddress(ctx context.Context, minerAddr address.Address) (address.Address, error)
 	SectorBuilder() sectorbuilder.SectorBuilder
+	TempDag() *dag.DAG
 	types.Signer
 }
 
@@ -421,7 +421,8 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 	// TODO: this is not a great way to do this. At least use a session
 	// Also, this needs to be fetched into a staging area for miners to prepare and seal in data
 	log.Debug("Miner.processStorageDeal - FetchGraph")
-	if err := dag.FetchGraph(ctx, d.Proposal.PieceRef, dag.NewDAGService(sm.node.BlockService())); err != nil {
+
+	if err := sm.porcelainAPI.TempDag().Fetch(ctx, d.Proposal.PieceRef); err != nil {
 		log.Errorf("failed to fetch data: %s", err)
 		err := sm.updateDealResponse(ctx, proposalCid, func(resp *storagedeal.Response) {
 			resp.Message = "Transfer failed"
@@ -444,24 +445,35 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 		}
 	}
 
-	dagService := dag.NewDAGService(sm.node.BlockService())
+	//dagService := merkledag.NewDAGService(sm.node.BlockService())
 
-	rootIpldNode, err := dagService.Get(ctx, d.Proposal.PieceRef)
+	//rootIpldNode, err := dagService.Get(ctx, d.Proposal.PieceRef)
 	if err != nil {
 		fail("internal error", fmt.Sprintf("failed to add piece: %s", err))
 		return
 	}
 
+	reader, err := sm.porcelainAPI.TempDag().Cat(ctx, d.Proposal.PieceRef)
+	if err != nil {
+		fail("internal error", fmt.Sprintf("failed to get piece reader: %s", err))
+		return
+	}
 	// Before adding piece, confirm that client has generated payment conditions correctly now that
 	// we can compute CommP
-	if err := sm.validatePieceCommitments(ctx, d, rootIpldNode, dagService); err != nil {
+	if err := sm.validatePieceCommitments(ctx, d, reader); err != nil {
 		fail("payment error", fmt.Sprintf("failed to add piece: %s", err))
 		return
 	}
 
-	r, err := uio.NewDagReader(ctx, rootIpldNode, dagService)
+	//r, err := uio.NewDagReader(ctx, rootIpldNode, dagService)
+	//if err != nil {
+	//	fail("internal error", fmt.Sprintf("failed to add piece: %s", err))
+	//	return
+	//}
+
+	_, err = reader.Seek(0, io.SeekStart)
 	if err != nil {
-		fail("internal error", fmt.Sprintf("failed to add piece: %s", err))
+		fail("internal error", fmt.Sprintf("failed to seek piece reader: %s", err))
 		return
 	}
 
@@ -474,7 +486,7 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 	//
 	// Also, this pattern of not being able to set up book-keeping ahead of
 	// the call is inelegant.
-	sectorID, err := sm.porcelainAPI.SectorBuilder().AddPiece(ctx, d.Proposal.PieceRef, d.Proposal.Size.Uint64(), r)
+	sectorID, err := sm.porcelainAPI.SectorBuilder().AddPiece(ctx, d.Proposal.PieceRef, d.Proposal.Size.Uint64(), reader)
 	if err != nil {
 		fail("failed to submit seal proof", fmt.Sprintf("failed to add piece: %s", err))
 		return
@@ -495,16 +507,16 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 	}
 }
 
-func (sm *Miner) validatePieceCommitments(ctx context.Context, deal *storagedeal.Deal, rootIpldNode format.Node, serv format.NodeGetter) error {
-	pieceReader, err := uio.NewDagReader(ctx, rootIpldNode, serv)
-	if err != nil {
-		return err
-	}
+func (sm *Miner) validatePieceCommitments(ctx context.Context, deal *storagedeal.Deal, reader io.Reader) error {
+	//pieceReader, err := uio.NewDagReader(ctx, rootIpldNode, serv)
+	//if err != nil {
+	//	return err
+	//}
 
 	// Generating the piece commitment is a computationally expensive operation and can take
 	// many minutes depending on the size of the piece.
 	pieceCommitmentResponse, err := proofs.GeneratePieceCommitment(proofs.GeneratePieceCommitmentRequest{
-		PieceReader: pieceReader,
+		PieceReader: reader,
 		PieceSize:   types.NewBytesAmount(deal.Proposal.Size.Uint64()),
 	})
 	if err != nil {

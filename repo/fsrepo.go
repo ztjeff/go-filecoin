@@ -332,6 +332,10 @@ func (r *FSRepo) Close() error {
 		return errors.Wrap(err, "failed to close miner deals datastore")
 	}
 
+	if err := r.tempDs.Close(); err != nil {
+		return errors.Wrap(err, "failed to close temporary datastore")
+	}
+
 	if err := r.removeAPIFile(); err != nil {
 		return errors.Wrap(err, "error removing API file")
 	}

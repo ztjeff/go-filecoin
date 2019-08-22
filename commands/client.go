@@ -82,7 +82,7 @@ See the go-filecoin client cat command for more details.
 			return fmt.Errorf("given file was not a files.File")
 		}
 
-		out, err := GetPorcelainAPI(env).DAGImportData(req.Context, fi)
+		out, err := GetPorcelainAPI(env).TempDAGImportData(req.Context, fi)
 		if err != nil {
 			return err
 		}

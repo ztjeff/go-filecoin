@@ -160,7 +160,6 @@ var rootSubcmdsLocal = map[string]*cmds.Command{
 var rootSubcmdsDaemon = map[string]*cmds.Command{
 	"actor":            actorCmd,
 	"address":          addrsCmd,
-	"bitswap":          bitswapCmd,
 	"bootstrap":        bootstrapCmd,
 	"chain":            chainCmd,
 	"config":           configCmd,
