@@ -11,7 +11,8 @@ var dagCmd = &cmds.Command{
 		Tagline: "Interact with IPLD DAG objects.",
 	},
 	Subcommands: map[string]*cmds.Command{
-		"get": dagGetCmd,
+		"get":         dagGetCmd,
+		"clear-cache": dagClearCacheCmd,
 	},
 }
 
@@ -29,5 +30,19 @@ var dagGetCmd = &cmds.Command{
 		}
 
 		return re.Emit(out)
+	},
+}
+
+var dagClearCacheCmd = &cmds.Command{
+	Helptext: cmdkit.HelpText{
+		Tagline: "Purge the cache used during transferring of piece data",
+	},
+	Run: func(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) error {
+		err := GetPorcelainAPI(env).ClearTempDatastore(req.Context)
+		if err != nil {
+			return err
+		}
+
+		return re.Emit("Cache cleared")
 	},
 }

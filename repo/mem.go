@@ -101,6 +101,7 @@ func (mr *MemRepo) Close() error {
 	return nil
 }
 
+// ClearTempDatastore is a noop in a MemRepo
 func (mr *MemRepo) ClearTempDatastore() error {
 	return nil
 }

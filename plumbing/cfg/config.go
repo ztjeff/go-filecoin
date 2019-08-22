@@ -33,3 +33,8 @@ func (s *Config) Set(dottedKey string, jsonString string) error {
 func (s *Config) Get(dottedKey string) (interface{}, error) {
 	return s.repo.Config().Get(dottedKey)
 }
+
+// Repo returns the configured Repo
+func (s *Config) Repo() repo.Repo {
+	return s.repo
+}
