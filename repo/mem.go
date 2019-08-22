@@ -21,6 +21,7 @@ type MemRepo struct {
 	W          Datastore
 	Chain      Datastore
 	DealsDs    Datastore
+	TempDs     Datastore
 	version    uint
 	apiAddress string
 }
@@ -36,6 +37,7 @@ func NewInMemoryRepo() *MemRepo {
 		W:       dss.MutexWrap(datastore.NewMapDatastore()),
 		Chain:   dss.MutexWrap(datastore.NewMapDatastore()),
 		DealsDs: dss.MutexWrap(datastore.NewMapDatastore()),
+		TempDs:  dss.MutexWrap(datastore.NewMapDatastore()),
 		version: Version,
 	}
 }
@@ -81,6 +83,11 @@ func (mr *MemRepo) ChainDatastore() Datastore {
 // DealsDatastore returns the deals datastore for miners.
 func (mr *MemRepo) DealsDatastore() Datastore {
 	return mr.DealsDs
+}
+
+// TempDatastore returns the temp datastore
+func (mr *MemRepo) TempDatastore() Datastore {
+	return mr.TempDs
 }
 
 // Version returns the version of the repo.

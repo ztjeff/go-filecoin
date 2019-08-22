@@ -31,6 +31,7 @@ const (
 	walletDatastorePrefix  = "wallet"
 	chainDatastorePrefix   = "chain"
 	dealsDatastorePrefix   = "deals"
+	tempDatastorePrefix    = "temp"
 	snapshotStorePrefix    = "snapshots"
 	snapshotFilenamePrefix = "snapshot"
 )
@@ -52,6 +53,7 @@ type FSRepo struct {
 	walletDs Datastore
 	chainDs  Datastore
 	dealsDs  Datastore
+	tempDs   Datastore
 
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
@@ -227,6 +229,10 @@ func (r *FSRepo) loadFromDisk() error {
 	if err := r.openDealsDatastore(); err != nil {
 		return errors.Wrap(err, "failed to open deals datastore")
 	}
+
+	if err := r.openTempDatastore(); err != nil {
+		return errors.Wrap(err, "failed to open temp datastore")
+	}
 	return nil
 }
 
@@ -291,6 +297,11 @@ func (r *FSRepo) ChainDatastore() Datastore {
 // DealsDatastore returns the deals datastore.
 func (r *FSRepo) DealsDatastore() Datastore {
 	return r.dealsDs
+}
+
+// TempDatastore returns the deals datastore.
+func (r *FSRepo) TempDatastore() Datastore {
+	return r.tempDs
 }
 
 // Version returns the version of the repo
@@ -440,6 +451,17 @@ func (r *FSRepo) openDealsDatastore() error {
 	}
 
 	r.dealsDs = ds
+
+	return nil
+}
+
+func (r *FSRepo) openTempDatastore() error {
+	ds, err := badgerds.NewDatastore(filepath.Join(r.path, tempDatastorePrefix), badgerOptions())
+	if err != nil {
+		return err
+	}
+
+	r.tempDs = ds
 
 	return nil
 }
