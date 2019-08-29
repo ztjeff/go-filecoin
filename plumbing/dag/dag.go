@@ -26,38 +26,6 @@ func NewDAG(dserv ipld.DAGService) *DAG {
 	}
 }
 
-//
-//// GetNode returns the associated DAG node for the passed in CID.
-//func (dag *DAG) GetNode(ctx context.Context, ref string) (interface{}, error) {
-//	parsedRef, err := path.ParsePath(ref)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	resolver := resolver.NewBasicResolver(dag.dserv)
-//
-//	objc, rem, err := resolver.ResolveToLastNode(ctx, parsedRef)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	obj, err := dag.dserv.Get(ctx, objc)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	var out interface{} = obj
-//	if len(rem) > 0 {
-//		final, _, err := obj.Resolve(rem)
-//		if err != nil {
-//			return nil, err
-//		}
-//		out = final
-//	}
-//
-//	return out, nil
-//}
-
 // GetFileSize returns the file size for a given Cid
 func (dag *DAG) GetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
 	fnode, err := dag.dserv.Get(ctx, c)
@@ -74,13 +42,13 @@ func (dag *DAG) GetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
 	}
 }
 
-// Cat returns an iostream with a piece of data stored on the merkeldag with
+// Read returns an iostream with a piece of data stored on the merkeldag with
 // the given cid.
 //
 // TODO: this goes back to 'how is data stored and referenced'
 // For now, lets just do things the ipfs way.
 // https://github.com/filecoin-project/specs/issues/136
-func (dag *DAG) Cat(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
+func (dag *DAG) Read(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
 	data, err := dag.dserv.Get(ctx, c)
 	if err != nil {
 		return nil, err
@@ -88,9 +56,9 @@ func (dag *DAG) Cat(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
 	return uio.NewDagReader(ctx, data, dag.dserv)
 }
 
-// ImportData adds data from an io stream to the merkledag and returns the Cid
+// Write adds data from an io stream to the merkledag and returns the Cid
 // of the given data
-func (dag *DAG) ImportData(ctx context.Context, data io.Reader) (ipld.Node, error) {
+func (dag *DAG) Write(ctx context.Context, data io.Reader) (ipld.Node, error) {
 	bufds := ipld.NewBufferedDAG(ctx, dag.dserv)
 
 	spl := chunk.DefaultSplitter(data)

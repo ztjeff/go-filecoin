@@ -3,12 +3,12 @@ package storage
 import (
 	"context"
 	"fmt"
-	"io"
 	"math/big"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log"
+	uio "github.com/ipfs/go-unixfs/io"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -57,8 +57,8 @@ type clientPorcelainAPI interface {
 	ChainBlockHeight() (*types.BlockHeight, error)
 	CreatePayments(ctx context.Context, config porcelain.CreatePaymentsParams) (*porcelain.CreatePaymentsReturn, error)
 	DealGet(context.Context, cid.Cid) (*storagedeal.Deal, error)
-	DAGGetFileSize(context.Context, cid.Cid) (uint64, error)
-	DAGCat(context.Context, cid.Cid) (io.Reader, error)
+	GetPieceSize(context.Context, cid.Cid) (uint64, error)
+	ReadPiece(context.Context, cid.Cid) (uio.DagReader, error)
 	DealPut(*storagedeal.Deal) error
 	DealsLs(context.Context) (<-chan *porcelain.StorageDealLsResult, error)
 	MessageQuery(ctx context.Context, optFrom, to address.Address, method string, params ...interface{}) ([][]byte, error)
@@ -105,7 +105,7 @@ func (smc *Client) ProposeDeal(ctx context.Context, miner address.Address, data 
 		minerAlive <- smc.api.PingMinerWithTimeout(ctx, pid, 15*time.Second)
 	}()
 
-	pieceSize, err := smc.api.DAGGetFileSize(ctx, data)
+	pieceSize, err := smc.api.GetPieceSize(ctx, data)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to determine the size of the data")
 	}
@@ -120,7 +120,7 @@ func (smc *Client) ProposeDeal(ctx context.Context, miner address.Address, data 
 		return nil, fmt.Errorf("piece is %d bytes but sector size is %d bytes", pieceSize, maxUserBytes)
 	}
 
-	pieceReader, err := smc.api.DAGCat(ctx, data)
+	pieceReader, err := smc.api.ReadPiece(ctx, data)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make piece reader")
 	}

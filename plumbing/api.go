@@ -9,6 +9,7 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	ipld "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
+	uio "github.com/ipfs/go-unixfs/io"
 	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -45,8 +46,7 @@ type API struct {
 	chain         *cst.ChainStateProvider
 	syncer        *cst.ChainSyncProvider
 	config        *cfg.Config
-	dag           *dag.DAG
-	tempDag       *dag.DAG
+	pieceDAG      *dag.DAG
 	expected      consensus.Protocol
 	msgPool       *core.MessagePool
 	msgPreviewer  *msg.Previewer
@@ -64,8 +64,7 @@ type APIDeps struct {
 	Chain         *cst.ChainStateProvider
 	Sync          *cst.ChainSyncProvider
 	Config        *cfg.Config
-	DAG           *dag.DAG
-	TempDAG       *dag.DAG
+	PieceDAG      *dag.DAG
 	Deals         *strgdls.Store
 	Expected      consensus.Protocol
 	MsgPool       *core.MessagePool
@@ -86,8 +85,7 @@ func New(deps *APIDeps) *API {
 		chain:         deps.Chain,
 		syncer:        deps.Sync,
 		config:        deps.Config,
-		dag:           deps.DAG,
-		tempDag:       deps.TempDAG,
+		pieceDAG:      deps.PieceDAG,
 		expected:      deps.Expected,
 		msgPool:       deps.MsgPool,
 		msgPreviewer:  deps.MsgPreviewer,
@@ -347,27 +345,27 @@ func (api *API) WalletExport(addrs []address.Address) ([]*types.KeyInfo, error) 
 	return api.wallet.Export(addrs)
 }
 
-// DAGGetFileSize returns the file size for a given Cid
-func (api *API) DAGGetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
-	return api.tempDag.GetFileSize(ctx, c)
+// GetPieceSize returns the file size for a given Cid
+func (api *API) GetPieceSize(ctx context.Context, c cid.Cid) (uint64, error) {
+	return api.pieceDAG.GetFileSize(ctx, c)
 }
 
-// DAGCat returns an iostream with a piece of data stored on the merkeldag with
+// ReadPiece returns an iostream with a piece of data stored on the merkeldag with
 // the given cid.
-func (api *API) DAGCat(ctx context.Context, c cid.Cid) (io.Reader, error) {
-	return api.tempDag.Cat(ctx, c)
+func (api *API) ReadPiece(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
+	return api.pieceDAG.Read(ctx, c)
 }
 
-// TempDAGImportData adds data from an io reader to the temporary data storemerkledag and returns the
+// WritePiece adds data from an io reader to the temporary data storemerkledag and returns the
 // Cid of the given data. Once the data is in the DAG, it can fetched from the
 // node via Bitswap and a copy will be kept in the blockstore.
-func (api *API) TempDAGImportData(ctx context.Context, data io.Reader) (ipld.Node, error) {
-	return api.tempDag.ImportData(ctx, data)
+func (api *API) WritePiece(ctx context.Context, data io.Reader) (ipld.Node, error) {
+	return api.pieceDAG.Write(ctx, data)
 }
 
-// TempDag returns the piece data store/dag
-func (api *API) TempDag() *dag.DAG {
-	return api.tempDag
+// FetchPiece returns the piece data store/dag
+func (api *API) FetchPiece(ctx context.Context, cid cid.Cid) error {
+	return api.pieceDAG.Fetch(ctx, cid)
 }
 
 // ClearTempDatastore clears the temporary datastore used mainly by bitswap

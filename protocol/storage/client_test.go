@@ -76,14 +76,14 @@ func TestProposeDeal(t *testing.T) {
 	})
 
 	t.Run("and creates proposal with file size", func(t *testing.T) {
-		expectedFileSize, err := testAPI.DAGGetFileSize(ctx, dataCid)
+		expectedFileSize, err := testAPI.GetPieceSize(ctx, dataCid)
 		require.NoError(t, err)
 		assert.Equal(t, types.NewBytesAmount(expectedFileSize), proposal.Size)
 	})
 
 	t.Run("and computes the correct total price", func(t *testing.T) {
 		expectedAskPrice := types.NewAttoFILFromFIL(32) // from test plumbing
-		expectedFileSize, err := testAPI.DAGGetFileSize(ctx, dataCid)
+		expectedFileSize, err := testAPI.GetPieceSize(ctx, dataCid)
 		require.NoError(t, err)
 
 		expectedTotalPrice := expectedAskPrice.MulBigInt(big.NewInt(int64(expectedFileSize * duration)))
@@ -329,11 +329,11 @@ func (ctp *clientTestAPI) CreatePayments(ctx context.Context, config porcelain.C
 	return resp, nil
 }
 
-func (ctp *clientTestAPI) DAGGetFileSize(context.Context, cid.Cid) (uint64, error) {
+func (ctp *clientTestAPI) GetPieceSize(context.Context, cid.Cid) (uint64, error) {
 	return ctp.pieceSize, nil
 }
 
-func (ctp *clientTestAPI) DAGCat(context.Context, cid.Cid) (io.Reader, error) {
+func (ctp *clientTestAPI) ReadPiece(context.Context, cid.Cid) (io.Reader, error) {
 	return ctp.pieceReader, nil
 }
 

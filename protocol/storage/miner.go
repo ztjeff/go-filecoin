@@ -20,12 +20,13 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/pkg/errors"
 
+	uio "github.com/ipfs/go-unixfs/io"
+
 	"github.com/filecoin-project/go-filecoin/abi"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/paymentbroker"
 	"github.com/filecoin-project/go-filecoin/address"
 	cbu "github.com/filecoin-project/go-filecoin/cborutil"
 	"github.com/filecoin-project/go-filecoin/exec"
-	"github.com/filecoin-project/go-filecoin/plumbing/dag"
 	"github.com/filecoin-project/go-filecoin/porcelain"
 	"github.com/filecoin-project/go-filecoin/proofs"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
@@ -88,7 +89,8 @@ type minerPorcelain interface {
 	MessageWait(ctx context.Context, msgCid cid.Cid, cb func(*types.Block, *types.SignedMessage, *types.MessageReceipt) error) error
 	MinerGetWorkerAddress(ctx context.Context, minerAddr address.Address) (address.Address, error)
 	SectorBuilder() sectorbuilder.SectorBuilder
-	TempDag() *dag.DAG
+	ReadPiece(context.Context, cid.Cid) (uio.DagReader, error)
+	FetchPiece(context.Context, cid.Cid) error
 	types.Signer
 }
 
@@ -422,7 +424,7 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 	// Also, this needs to be fetched into a staging area for miners to prepare and seal in data
 	log.Debug("Miner.processStorageDeal - FetchGraph")
 
-	if err := sm.porcelainAPI.TempDag().Fetch(ctx, d.Proposal.PieceRef); err != nil {
+	if err := sm.porcelainAPI.FetchPiece(ctx, d.Proposal.PieceRef); err != nil {
 		log.Errorf("failed to fetch data: %s", err)
 		err := sm.updateDealResponse(ctx, proposalCid, func(resp *storagedeal.Response) {
 			resp.Message = "Transfer failed"
@@ -453,7 +455,7 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 		return
 	}
 
-	reader, err := sm.porcelainAPI.TempDag().Cat(ctx, d.Proposal.PieceRef)
+	reader, err := sm.porcelainAPI.ReadPiece(ctx, d.Proposal.PieceRef)
 	if err != nil {
 		fail("internal error", fmt.Sprintf("failed to get piece reader: %s", err))
 		return

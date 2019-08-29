@@ -50,7 +50,7 @@ format was provided with the data initially.
 			return err
 		}
 
-		dr, err := GetPorcelainAPI(env).DAGCat(req.Context, c)
+		dr, err := GetPorcelainAPI(env).ReadPiece(req.Context, c)
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ See the go-filecoin client cat command for more details.
 			return fmt.Errorf("given file was not a files.File")
 		}
 
-		out, err := GetPorcelainAPI(env).TempDAGImportData(req.Context, fi)
+		out, err := GetPorcelainAPI(env).WritePiece(req.Context, fi)
 		if err != nil {
 			return err
 		}
