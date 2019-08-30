@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"testing"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/exec"
 	"github.com/filecoin-project/go-filecoin/plumbing/cfg"
-	"github.com/filecoin-project/go-filecoin/plumbing/piece"
 	"github.com/filecoin-project/go-filecoin/porcelain"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
 	"github.com/filecoin-project/go-filecoin/protocol/storage/storagedeal"
@@ -842,4 +842,12 @@ func (mtp *minerTestPorcelain) DealPut(storageDeal *storagedeal.Deal) error {
 
 func (mtp *minerTestPorcelain) SectorBuilder() sectorbuilder.SectorBuilder {
 	return &sectorbuilder.RustSectorBuilder{}
+}
+
+func (mtp *minerTestPorcelain) ReadPiece(context.Context, cid.Cid) (io.ReadSeeker, error) {
+	panic("implement me")
+}
+
+func (mtp *minerTestPorcelain) FetchPiece(context.Context, cid.Cid) error {
+	panic("implement me")
 }

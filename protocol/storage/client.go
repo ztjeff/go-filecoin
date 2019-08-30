@@ -3,12 +3,12 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log"
-	uio "github.com/ipfs/go-unixfs/io"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -58,7 +58,7 @@ type clientPorcelainAPI interface {
 	CreatePayments(ctx context.Context, config porcelain.CreatePaymentsParams) (*porcelain.CreatePaymentsReturn, error)
 	DealGet(context.Context, cid.Cid) (*storagedeal.Deal, error)
 	GetPieceSize(context.Context, cid.Cid) (uint64, error)
-	ReadPiece(context.Context, cid.Cid) (uio.DagReader, error)
+	ReadPiece(context.Context, cid.Cid) (io.ReadSeeker, error)
 	DealPut(*storagedeal.Deal) error
 	DealsLs(context.Context) (<-chan *porcelain.StorageDealLsResult, error)
 	MessageQuery(ctx context.Context, optFrom, to address.Address, method string, params ...interface{}) ([][]byte, error)

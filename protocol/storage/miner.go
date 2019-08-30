@@ -19,8 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/pkg/errors"
 
-	uio "github.com/ipfs/go-unixfs/io"
-
 	"github.com/filecoin-project/go-filecoin/abi"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/paymentbroker"
 	"github.com/filecoin-project/go-filecoin/address"
@@ -88,7 +86,7 @@ type minerPorcelain interface {
 	MessageWait(ctx context.Context, msgCid cid.Cid, cb func(*types.Block, *types.SignedMessage, *types.MessageReceipt) error) error
 	MinerGetWorkerAddress(ctx context.Context, minerAddr address.Address) (address.Address, error)
 	SectorBuilder() sectorbuilder.SectorBuilder
-	ReadPiece(context.Context, cid.Cid) (uio.DagReader, error)
+	ReadPiece(context.Context, cid.Cid) (io.ReadSeeker, error)
 	FetchPiece(context.Context, cid.Cid) error
 	types.Signer
 }
@@ -445,9 +443,6 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 		}
 	}
 
-	//dagService := merkledag.NewDAGService(sm.node.BlockService())
-
-	//rootIpldNode, err := dagService.Get(ctx, d.Proposal.PieceRef)
 	if err != nil {
 		fail("internal error", fmt.Sprintf("failed to add piece: %s", err))
 		return
@@ -465,18 +460,11 @@ func processStorageDeal(ctx context.Context, sm *Miner, proposalCid cid.Cid) {
 		return
 	}
 
-	//r, err := uio.NewDagReader(ctx, rootIpldNode, dagService)
-	//if err != nil {
-	//	fail("internal error", fmt.Sprintf("failed to add piece: %s", err))
-	//	return
-	//}
-
-	_, err = reader.Seek(0, io.SeekStart)
+	reader, err = sm.porcelainAPI.ReadPiece(ctx, d.Proposal.PieceRef)
 	if err != nil {
-		fail("internal error", fmt.Sprintf("failed to seek piece reader: %s", err))
+		fail("internal error", fmt.Sprintf("failed to get piece reader: %s", err))
 		return
 	}
-
 	// There is a race here that requires us to use dealsAwaitingSeal below. If the
 	// sector gets sealed and OnCommitmentSent is called right after
 	// AddPiece returns but before we record the sector/deal mapping we might

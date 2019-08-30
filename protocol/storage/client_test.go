@@ -264,12 +264,12 @@ type clientTestAPI struct {
 	perPayment     types.AttoFIL
 	testing        *testing.T
 	deals          map[cid.Cid]*storagedeal.Deal
-	pieceReader    io.Reader
+	pieceReader    io.ReadSeeker
 	pieceSize      uint64
 	signer         types.Signer
 }
 
-func newTestClientAPI(t *testing.T, pieceReader io.Reader, pieceSize uint64) *clientTestAPI {
+func newTestClientAPI(t *testing.T, pieceReader io.ReadSeeker, pieceSize uint64) *clientTestAPI {
 	cidGetter := types.NewCidForTestGetter()
 	addressGetter := address.NewForTestGetter()
 	mockSigner, ki := types.NewMockSignersAndKeyInfo(1)
@@ -333,7 +333,7 @@ func (ctp *clientTestAPI) GetPieceSize(context.Context, cid.Cid) (uint64, error)
 	return ctp.pieceSize, nil
 }
 
-func (ctp *clientTestAPI) ReadPiece(context.Context, cid.Cid) (io.Reader, error) {
+func (ctp *clientTestAPI) ReadPiece(context.Context, cid.Cid) (io.ReadSeeker, error) {
 	return ctp.pieceReader, nil
 }
 

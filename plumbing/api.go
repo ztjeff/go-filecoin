@@ -9,7 +9,6 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	ipld "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
-	uio "github.com/ipfs/go-unixfs/io"
 	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -347,12 +346,12 @@ func (api *API) WalletExport(addrs []address.Address) ([]*types.KeyInfo, error) 
 
 // GetPieceSize returns the file size for a given Cid
 func (api *API) GetPieceSize(ctx context.Context, c cid.Cid) (uint64, error) {
-	return api.pieceDAG.GetFileSize(ctx, c)
+	return api.pieceDAG.Size(ctx, c)
 }
 
 // ReadPiece returns an iostream with a piece of data stored on the merkeldag with
 // the given cid.
-func (api *API) ReadPiece(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
+func (api *API) ReadPiece(ctx context.Context, c cid.Cid) (io.ReadSeeker, error) {
 	return api.pieceDAG.Read(ctx, c)
 }
 
