@@ -25,7 +25,6 @@ import (
 	"github.com/ipfs/go-ipfs-exchange-offline"
 	offroute "github.com/ipfs/go-ipfs-routing/offline"
 	logging "github.com/ipfs/go-log"
-	"github.com/ipfs/go-merkledag"
 	"github.com/libp2p/go-libp2p"
 	autonatsvc "github.com/libp2p/go-libp2p-autonat-svc"
 	circuit "github.com/libp2p/go-libp2p-circuit"
@@ -55,8 +54,8 @@ import (
 	"github.com/filecoin-project/go-filecoin/plumbing"
 	"github.com/filecoin-project/go-filecoin/plumbing/cfg"
 	"github.com/filecoin-project/go-filecoin/plumbing/cst"
-	"github.com/filecoin-project/go-filecoin/plumbing/dag"
 	"github.com/filecoin-project/go-filecoin/plumbing/msg"
+	"github.com/filecoin-project/go-filecoin/plumbing/piece"
 	"github.com/filecoin-project/go-filecoin/plumbing/strgdls"
 	"github.com/filecoin-project/go-filecoin/porcelain"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
@@ -413,13 +412,8 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 
 	// set up bitswap
 	nwork := bsnet.NewFromIpfsHost(peerHost, router)
-
-	//bswap := bitswap.New(ctx, nwork, bs)
-	bservice := bserv.New(bs, offline.Exchange(bs))
-
-	tempBs := bstore.NewBlockstore(nc.Repo.TempDatastore())
-	tempBswap := bitswap.New(ctx, nwork, tempBs)
-	tempBservice := bserv.New(tempBs, tempBswap)
+	pbs := bstore.NewBlockstore(nc.Repo.TempDatastore())
+	bswap := bitswap.New(ctx, nwork, pbs)
 
 	graphsyncNetwork := gsnet.NewFromLibp2pHost(peerHost)
 	bridge := ipldbridge.NewIPLDBridge()
@@ -487,7 +481,6 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 	outbox := core.NewOutbox(fcWallet, consensus.NewOutboundMessageValidator(), msgQueue, msgPublisher, outboxPolicy, chainStore, chainState)
 
 	nd := &Node{
-		blockservice: bservice,
 		Blockstore:   bs,
 		cborStore:    &ipldCborStore,
 		Clock:        nc.Clock,
@@ -513,7 +506,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 		Chain:         chainState,
 		Sync:          cst.NewChainSyncProvider(chainSyncer),
 		Config:        cfg.NewConfig(nc.Repo),
-		PieceDAG:      dag.NewDAG(merkledag.NewDAGService(tempBservice)),
+		PieceService:  piece.NewPieceService(pbs, bswap),
 		Deals:         strgdls.New(nc.Repo.DealsDatastore()),
 		Expected:      nodeConsensus,
 		MsgPool:       msgPool,
@@ -1256,11 +1249,6 @@ func (node *Node) Host() host.Host {
 // SectorBuilder returns the nodes sectorBuilder.
 func (node *Node) SectorBuilder() sectorbuilder.SectorBuilder {
 	return node.sectorBuilder
-}
-
-// BlockService returns the nodes blockservice.
-func (node *Node) BlockService() bserv.BlockService {
-	return node.blockservice
 }
 
 // CborStore returns the nodes cborStore.

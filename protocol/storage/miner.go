@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	bserv "github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -103,7 +102,6 @@ type prover interface {
 // are moving off of node and into the porcelain api (see porcelainAPI). Eventually this
 // dependency on node should go away, fully replaced by the dependency on the porcelain api.
 type node interface {
-	BlockService() bserv.BlockService
 	Host() host.Host
 }
 

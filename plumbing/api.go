@@ -25,8 +25,8 @@ import (
 	"github.com/filecoin-project/go-filecoin/net/pubsub"
 	"github.com/filecoin-project/go-filecoin/plumbing/cfg"
 	"github.com/filecoin-project/go-filecoin/plumbing/cst"
-	"github.com/filecoin-project/go-filecoin/plumbing/dag"
 	"github.com/filecoin-project/go-filecoin/plumbing/msg"
+	"github.com/filecoin-project/go-filecoin/plumbing/piece"
 	"github.com/filecoin-project/go-filecoin/plumbing/strgdls"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
 	"github.com/filecoin-project/go-filecoin/protocol/storage/storagedeal"
@@ -46,7 +46,7 @@ type API struct {
 	chain         *cst.ChainStateProvider
 	syncer        *cst.ChainSyncProvider
 	config        *cfg.Config
-	pieceDAG      *dag.DAG
+	pieceDAG      *piece.PieceService
 	expected      consensus.Protocol
 	msgPool       *core.MessagePool
 	msgPreviewer  *msg.Previewer
@@ -64,7 +64,7 @@ type APIDeps struct {
 	Chain         *cst.ChainStateProvider
 	Sync          *cst.ChainSyncProvider
 	Config        *cfg.Config
-	PieceDAG      *dag.DAG
+	PieceService  *piece.PieceService
 	Deals         *strgdls.Store
 	Expected      consensus.Protocol
 	MsgPool       *core.MessagePool
@@ -85,7 +85,7 @@ func New(deps *APIDeps) *API {
 		chain:         deps.Chain,
 		syncer:        deps.Sync,
 		config:        deps.Config,
-		pieceDAG:      deps.PieceDAG,
+		pieceDAG:      deps.PieceService,
 		expected:      deps.Expected,
 		msgPool:       deps.MsgPool,
 		msgPreviewer:  deps.MsgPreviewer,
@@ -357,7 +357,7 @@ func (api *API) ReadPiece(ctx context.Context, c cid.Cid) (uio.DagReader, error)
 }
 
 // WritePiece adds data from an io reader to the temporary data storemerkledag and returns the
-// Cid of the given data. Once the data is in the DAG, it can fetched from the
+// Cid of the given data. Once the data is in the PieceService, it can fetched from the
 // node via Bitswap and a copy will be kept in the blockstore.
 func (api *API) WritePiece(ctx context.Context, data io.Reader) (ipld.Node, error) {
 	return api.pieceDAG.Write(ctx, data)

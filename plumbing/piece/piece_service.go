@@ -1,9 +1,13 @@
-package dag
+package piece
 
 import (
 	"context"
 	"fmt"
 	"io"
+
+	"github.com/ipfs/go-blockservice"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
+	exchange "github.com/ipfs/go-ipfs-exchange-interface"
 
 	"github.com/ipfs/go-cid"
 	chunk "github.com/ipfs/go-ipfs-chunker"
@@ -14,21 +18,24 @@ import (
 	uio "github.com/ipfs/go-unixfs/io"
 )
 
-// DAG is a service for accessing the merkledag
-type DAG struct {
+// PieceService is a service for accessing the merkledag
+type PieceService struct {
 	dserv ipld.DAGService
 }
 
-// NewDAG creates a DAG with a given DAGService
-func NewDAG(dserv ipld.DAGService) *DAG {
-	return &DAG{
-		dserv: dserv,
+// NewPieceService creates a PieceService with a given DAGService
+func NewPieceService(bstore blockstore.Blockstore, exch exchange.Interface) *PieceService {
+	bserv := blockservice.New(bstore, exch)
+	ds := merkledag.NewDAGService(bserv)
+
+	return &PieceService{
+		dserv: ds,
 	}
 }
 
 // GetFileSize returns the file size for a given Cid
-func (dag *DAG) GetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
-	fnode, err := dag.dserv.Get(ctx, c)
+func (ps *PieceService) GetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
+	fnode, err := ps.dserv.Get(ctx, c)
 	if err != nil {
 		return 0, err
 	}
@@ -48,18 +55,18 @@ func (dag *DAG) GetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
 // TODO: this goes back to 'how is data stored and referenced'
 // For now, lets just do things the ipfs way.
 // https://github.com/filecoin-project/specs/issues/136
-func (dag *DAG) Read(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
-	data, err := dag.dserv.Get(ctx, c)
+func (ps *PieceService) Read(ctx context.Context, c cid.Cid) (uio.DagReader, error) {
+	data, err := ps.dserv.Get(ctx, c)
 	if err != nil {
 		return nil, err
 	}
-	return uio.NewDagReader(ctx, data, dag.dserv)
+	return uio.NewDagReader(ctx, data, ps.dserv)
 }
 
 // Write adds data from an io stream to the merkledag and returns the Cid
 // of the given data
-func (dag *DAG) Write(ctx context.Context, data io.Reader) (ipld.Node, error) {
-	bufds := ipld.NewBufferedDAG(ctx, dag.dserv)
+func (ps *PieceService) Write(ctx context.Context, data io.Reader) (ipld.Node, error) {
+	bufds := ipld.NewBufferedDAG(ctx, ps.dserv)
 
 	spl := chunk.DefaultSplitter(data)
 
@@ -70,6 +77,6 @@ func (dag *DAG) Write(ctx context.Context, data io.Reader) (ipld.Node, error) {
 	return nd, bufds.Commit()
 }
 
-func (dag *DAG) Fetch(ctx context.Context, cid cid.Cid) error {
-	return merkledag.FetchGraph(ctx, cid, dag.dserv)
+func (ps *PieceService) Fetch(ctx context.Context, cid cid.Cid) error {
+	return merkledag.FetchGraph(ctx, cid, ps.dserv)
 }
