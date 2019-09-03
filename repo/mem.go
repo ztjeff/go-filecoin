@@ -85,8 +85,8 @@ func (mr *MemRepo) DealsDatastore() Datastore {
 	return mr.DealsDs
 }
 
-// TempDatastore returns the temp datastore
-func (mr *MemRepo) TempDatastore() Datastore {
+// PieceDatastore returns the piece datastore
+func (mr *MemRepo) PieceDatastore() Datastore {
 	return mr.TempDs
 }
 
@@ -101,8 +101,8 @@ func (mr *MemRepo) Close() error {
 	return nil
 }
 
-// ClearTempDatastore is a noop in a MemRepo
-func (mr *MemRepo) ClearTempDatastore() error {
+// ClearPieceDatastore is a noop in a MemRepo
+func (mr *MemRepo) ClearPieceDatastore() error {
 	return nil
 }
 

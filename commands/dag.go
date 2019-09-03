@@ -20,7 +20,7 @@ var dagClearCacheCmd = &cmds.Command{
 		Tagline: "Purge the cache used during transferring of piece data",
 	},
 	Run: func(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) error {
-		err := GetPorcelainAPI(env).ClearTempDatastore(req.Context)
+		err := GetPorcelainAPI(env).ClearPieceDatastore(req.Context)
 		if err != nil {
 			return err
 		}

@@ -45,7 +45,7 @@ type API struct {
 	chain         *cst.ChainStateProvider
 	syncer        *cst.ChainSyncProvider
 	config        *cfg.Config
-	pieceDAG      *piece.Service
+	pieceService  *piece.Service
 	expected      consensus.Protocol
 	msgPool       *core.MessagePool
 	msgPreviewer  *msg.Previewer
@@ -84,7 +84,7 @@ func New(deps *APIDeps) *API {
 		chain:         deps.Chain,
 		syncer:        deps.Sync,
 		config:        deps.Config,
-		pieceDAG:      deps.PieceService,
+		pieceService:  deps.PieceService,
 		expected:      deps.Expected,
 		msgPool:       deps.MsgPool,
 		msgPreviewer:  deps.MsgPreviewer,
@@ -346,30 +346,30 @@ func (api *API) WalletExport(addrs []address.Address) ([]*types.KeyInfo, error) 
 
 // GetPieceSize returns the file size for a given Cid
 func (api *API) GetPieceSize(ctx context.Context, c cid.Cid) (uint64, error) {
-	return api.pieceDAG.Size(ctx, c)
+	return api.pieceService.Size(ctx, c)
 }
 
 // ReadPiece returns an iostream with a piece of data stored on the merkeldag with
 // the given cid.
 func (api *API) ReadPiece(ctx context.Context, c cid.Cid) (io.ReadSeeker, error) {
-	return api.pieceDAG.Read(ctx, c)
+	return api.pieceService.Read(ctx, c)
 }
 
 // WritePiece adds data from an io reader to the temporary data storemerkledag and returns the
 // Cid of the given data. Once the data is in the Service, it can fetched from the
 // node via Bitswap and a copy will be kept in the blockstore.
 func (api *API) WritePiece(ctx context.Context, data io.Reader) (ipld.Node, error) {
-	return api.pieceDAG.Write(ctx, data)
+	return api.pieceService.Write(ctx, data)
 }
 
 // FetchPiece returns the piece data store/dag
 func (api *API) FetchPiece(ctx context.Context, cid cid.Cid) error {
-	return api.pieceDAG.Fetch(ctx, cid)
+	return api.pieceService.Fetch(ctx, cid)
 }
 
-// ClearTempDatastore clears the temporary datastore used mainly by bitswap
-func (api *API) ClearTempDatastore(ctx context.Context) error {
-	return api.config.Repo().ClearTempDatastore()
+// ClearPieceDatastore clears the temporary datastore used mainly by bitswap
+func (api *API) ClearPieceDatastore(ctx context.Context) error {
+	return api.config.Repo().ClearPieceDatastore()
 }
 
 // SectorBuilder returns the sector builder

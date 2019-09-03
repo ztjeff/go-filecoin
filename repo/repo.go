@@ -37,8 +37,11 @@ type Repo interface {
 	// DealsDatastore holds deals data.
 	DealsDatastore() Datastore
 
-	// TempDatastore is used for temporary storage, and can be cleared with a command
-	TempDatastore() Datastore
+	// PieceDatastore is used for temporary piece storage, and can be cleared with a command
+	PieceDatastore() Datastore
+
+	// Purge the piece datastore
+	ClearPieceDatastore() error
 
 	// SetAPIAddr sets the address of the running API.
 	SetAPIAddr(string) error
@@ -54,7 +57,4 @@ type Repo interface {
 
 	// Close shuts down the repo.
 	Close() error
-
-	// Purge the temp datastore
-	ClearTempDatastore() error
 }

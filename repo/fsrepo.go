@@ -31,7 +31,7 @@ const (
 	walletDatastorePrefix  = "wallet"
 	chainDatastorePrefix   = "chain"
 	dealsDatastorePrefix   = "deals"
-	tempDatastorePrefix    = "temp"
+	pieceDatastorePrefix   = "pieces"
 	snapshotStorePrefix    = "snapshots"
 	snapshotFilenamePrefix = "snapshot"
 )
@@ -230,8 +230,8 @@ func (r *FSRepo) loadFromDisk() error {
 		return errors.Wrap(err, "failed to open deals datastore")
 	}
 
-	if err := r.openTempDatastore(); err != nil {
-		return errors.Wrap(err, "failed to open temp datastore")
+	if err := r.openPieceDatastore(); err != nil {
+		return errors.Wrap(err, "failed to open piece datastore")
 	}
 	return nil
 }
@@ -299,8 +299,8 @@ func (r *FSRepo) DealsDatastore() Datastore {
 	return r.dealsDs
 }
 
-// TempDatastore returns the deals datastore.
-func (r *FSRepo) TempDatastore() Datastore {
+// PieceDatastore returns the deals datastore.
+func (r *FSRepo) PieceDatastore() Datastore {
 	return r.tempDs
 }
 
@@ -343,8 +343,8 @@ func (r *FSRepo) Close() error {
 	return r.lockfile.Close()
 }
 
-// ClearTempDatastore purges all data from the temp datastore
-func (r *FSRepo) ClearTempDatastore() error {
+// ClearPieceDatastore purges all data from the piece datastore
+func (r *FSRepo) ClearPieceDatastore() error {
 	db := r.tempDs.(*badgerds.Datastore).DB
 	return db.DropAll()
 }
@@ -465,8 +465,8 @@ func (r *FSRepo) openDealsDatastore() error {
 	return nil
 }
 
-func (r *FSRepo) openTempDatastore() error {
-	ds, err := badgerds.NewDatastore(filepath.Join(r.path, tempDatastorePrefix), badgerOptions())
+func (r *FSRepo) openPieceDatastore() error {
+	ds, err := badgerds.NewDatastore(filepath.Join(r.path, pieceDatastorePrefix), badgerOptions())
 	if err != nil {
 		return err
 	}
