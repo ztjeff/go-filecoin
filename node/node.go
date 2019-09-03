@@ -174,9 +174,6 @@ type Node struct {
 	// Blockstore is the un-networked blocks interface
 	Blockstore bstore.Blockstore
 
-	// Blockservice is a higher level interface for fetching data
-	blockservice bserv.BlockService
-
 	// CborStore is a temporary interface for interacting with IPLD objects.
 	cborStore *hamt.CborIpldStore
 
@@ -506,7 +503,7 @@ func (nc *Config) Build(ctx context.Context) (*Node, error) {
 		Chain:         chainState,
 		Sync:          cst.NewChainSyncProvider(chainSyncer),
 		Config:        cfg.NewConfig(nc.Repo),
-		PieceService:  piece.NewPieceService(pbs, bswap),
+		PieceService:  piece.NewService(pbs, bswap),
 		Deals:         strgdls.New(nc.Repo.DealsDatastore()),
 		Expected:      nodeConsensus,
 		MsgPool:       msgPool,

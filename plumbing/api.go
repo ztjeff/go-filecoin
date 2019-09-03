@@ -45,7 +45,7 @@ type API struct {
 	chain         *cst.ChainStateProvider
 	syncer        *cst.ChainSyncProvider
 	config        *cfg.Config
-	pieceDAG      *piece.PieceService
+	pieceDAG      *piece.Service
 	expected      consensus.Protocol
 	msgPool       *core.MessagePool
 	msgPreviewer  *msg.Previewer
@@ -63,7 +63,7 @@ type APIDeps struct {
 	Chain         *cst.ChainStateProvider
 	Sync          *cst.ChainSyncProvider
 	Config        *cfg.Config
-	PieceService  *piece.PieceService
+	PieceService  *piece.Service
 	Deals         *strgdls.Store
 	Expected      consensus.Protocol
 	MsgPool       *core.MessagePool
@@ -356,7 +356,7 @@ func (api *API) ReadPiece(ctx context.Context, c cid.Cid) (io.ReadSeeker, error)
 }
 
 // WritePiece adds data from an io reader to the temporary data storemerkledag and returns the
-// Cid of the given data. Once the data is in the PieceService, it can fetched from the
+// Cid of the given data. Once the data is in the Service, it can fetched from the
 // node via Bitswap and a copy will be kept in the blockstore.
 func (api *API) WritePiece(ctx context.Context, data io.Reader) (ipld.Node, error) {
 	return api.pieceDAG.Write(ctx, data)
