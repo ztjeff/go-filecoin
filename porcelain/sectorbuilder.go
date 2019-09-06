@@ -16,9 +16,9 @@ import (
 
 type sbPlumbing interface {
 	SectorBuilder() sectorbuilder.SectorBuilder
-	DAGImportData(context.Context, io.Reader) (ipld.Node, error)
-	DAGCat(context.Context, cid.Cid) (io.Reader, error)
-	DAGGetFileSize(ctx context.Context, c cid.Cid) (uint64, error)
+	ReadPiece(ctx context.Context, c cid.Cid) (io.ReadSeeker, error)
+	WritePiece(ctx context.Context, data io.Reader) (ipld.Node, error)
+	GetPieceSize(ctx context.Context, c cid.Cid) (uint64, error)
 }
 
 // CalculatePoSt invokes the sector builder to calculate a proof-of-spacetime.
@@ -44,17 +44,17 @@ func AddPiece(ctx context.Context, plumbing sbPlumbing, pieceReader io.Reader) (
 		return 0, errors.New("must be mining to add piece")
 	}
 
-	node, err := plumbing.DAGImportData(ctx, pieceReader)
+	node, err := plumbing.WritePiece(ctx, pieceReader)
 	if err != nil {
 		return 0, errors.Wrap(err, "could not read piece into local store")
 	}
 
-	dagReader, err := plumbing.DAGCat(ctx, node.Cid())
+	dagReader, err := plumbing.ReadPiece(ctx, node.Cid())
 	if err != nil {
 		return 0, errors.Wrap(err, "could not obtain reader for piece")
 	}
 
-	size, err := plumbing.DAGGetFileSize(ctx, node.Cid())
+	size, err := plumbing.GetPieceSize(ctx, node.Cid())
 	if err != nil {
 		return 0, errors.Wrap(err, "could not calculate piece size")
 	}

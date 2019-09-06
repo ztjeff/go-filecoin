@@ -64,15 +64,15 @@ func (tsbp *testSectorBuilderPlumbing) SectorBuilder() sectorbuilder.SectorBuild
 	return tsbp.sectorbuilder
 }
 
-func (tsbp *testSectorBuilderPlumbing) DAGImportData(ctx context.Context, pieceReader io.Reader) (ipld.Node, error) {
+func (tsbp *testSectorBuilderPlumbing) WritePiece(ctx context.Context, pieceReader io.Reader) (ipld.Node, error) {
 	return cbor.WrapObject(testPieceData, types.DefaultHashFunction, -1)
 }
 
-func (tsbp *testSectorBuilderPlumbing) DAGCat(ctx context.Context, cid cid.Cid) (io.Reader, error) {
+func (tsbp *testSectorBuilderPlumbing) ReadPiece(ctx context.Context, cid cid.Cid) (io.ReadSeeker, error) {
 	return bytes.NewReader(testPieceData), nil
 }
 
-func (tsbp *testSectorBuilderPlumbing) DAGGetFileSize(ctx context.Context, c cid.Cid) (uint64, error) {
+func (tsbp *testSectorBuilderPlumbing) GetPieceSize(ctx context.Context, c cid.Cid) (uint64, error) {
 	return uint64(len(testPieceData)), nil
 }
 
