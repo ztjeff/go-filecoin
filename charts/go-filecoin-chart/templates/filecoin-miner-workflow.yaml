@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: filecoin-miner-workflow
+  name: "filecoin-miner-workflow-{{ randAlphaNum 5 | lower }}"
 spec:
   template:
     spec:
@@ -19,9 +19,15 @@ spec:
             "-binary=/usr/local/bin/go-filecoin",
           ]
           volumeMounts:
+            - name: devnet-secrets
+              mountPath: /opt/filecoin
+              readOnly: true
             - name: filecoin-parameter-cache
               mountPath: /opt/filecoin-proof-parameters
       volumes:
+      - name: devnet-secrets
+        secret:
+          secretName: filecoin
       - name: filecoin-parameter-cache
         hostPath:
           path: "{{ .Values.ProofParamsDir }}"

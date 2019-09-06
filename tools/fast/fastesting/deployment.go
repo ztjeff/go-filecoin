@@ -127,7 +127,7 @@ func makeDevnet(ctx context.Context, t *testing.T, network string, dir string, f
 	options[localplugin.AttrLogLevel] = "5"
 	options[localplugin.AttrFilecoinBinary] = binary
 
-	genesisURI := env.GenesisCar()
+	genesisURI := "/opt/filecoin/genesis.car" //env.GenesisCar()
 
 	fastenvOpts.InitOpts = append(fastenvOpts.InitOpts, fast.POGenesisFile(genesisURI), fast.PODevnet(network))
 
