@@ -2,6 +2,8 @@ package series
 
 import (
 	"context"
+	"io"
+	"os"
 
 	"github.com/filecoin-project/go-filecoin/tools/fast"
 )
@@ -9,7 +11,8 @@ import (
 // InitAndStart is a quick way to run Init and Start for a filecoin process. A variadic set of functions
 // can be passed to run between init and the start of the daemon to make configuration changes.
 func InitAndStart(ctx context.Context, node *fast.Filecoin, fns ...func(context.Context, *fast.Filecoin) error) error {
-	if _, err := node.InitDaemon(ctx); err != nil {
+	if o, err := node.InitDaemon(ctx); err != nil {
+		io.Copy(os.Stdout, o.Stderr())
 		return err
 	}
 
