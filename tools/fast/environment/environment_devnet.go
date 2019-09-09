@@ -173,9 +173,9 @@ func (e *Devnet) GetFunds(ctx context.Context, p *fast.Filecoin) error {
 	data.Set("target", toAddr.String())
 
 	uri := url.URL{
-		Host:   fmt.Sprintf("faucet.%s.kittyhawk.wtf", e.network),
+		Host:   "filecoin-genesis-0.filecoin-genesis.network-test.svc.cluster.local:9797",
 		Path:   "tap",
-		Scheme: "https",
+		Scheme: "http",
 	}
 
 	resp, err := http.PostForm(uri.String(), data)
