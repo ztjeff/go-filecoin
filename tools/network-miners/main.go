@@ -2,26 +2,22 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	flg "flag"
 	"fmt"
 	"github.com/filecoin-project/go-filecoin/types"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"syscall"
-	"time"
 
-	"github.com/ipfs/go-ipfs-files"
 	logging "github.com/ipfs/go-log"
 	"github.com/mitchellh/go-homedir"
 
-	"github.com/filecoin-project/go-filecoin/porcelain"
-	"github.com/filecoin-project/go-filecoin/protocol/storage/storagedeal"
 	"github.com/filecoin-project/go-filecoin/tools/fast"
 	"github.com/filecoin-project/go-filecoin/tools/fast/environment"
 	"github.com/filecoin-project/go-filecoin/tools/fast/series"
@@ -29,10 +25,15 @@ import (
 )
 
 var (
-	network string = "user"
-	workdir string
-	binpath string
-	err     error
+	network         string = "user"
+	workdir         string
+	binpath         string
+	err             error
+	fil             = 100000
+	minerCount      = 5
+	minerCollateral = big.NewInt(500)
+	minerPrice      = big.NewFloat(0.000000000000001)
+	minerExpiry     = big.NewInt(24 * 60 * 60)
 
 	exitcode int
 
@@ -43,7 +44,10 @@ func init() {
 	logging.SetDebugLogging()
 
 	var (
-		err error
+		err                error
+		minerCollateralArg = minerCollateral.Text(10)
+		minerPriceArg      = minerPrice.Text('f', 15)
+		minerExpiryArg     = minerExpiry.Text(10)
 	)
 
 	// We default to the binary built in the project directory, fallback
@@ -67,6 +71,10 @@ func init() {
 	flag.StringVar(&network, "network", network, "set the network name to run against")
 	flag.StringVar(&workdir, "workdir", workdir, "set the working directory used to store filecoin repos")
 	flag.StringVar(&binpath, "binpath", binpath, "set the binary used when executing `go-filecoin` commands")
+	flag.IntVar(&minerCount, "miner-count", minerCount, "number of miners")
+	flag.StringVar(&minerCollateralArg, "miner-collateral", minerCollateralArg, "amount of fil each miner will use for collateral")
+	flag.StringVar(&minerPriceArg, "miner-price", minerPriceArg, "price value used when creating ask for miners")
+	flag.StringVar(&minerExpiryArg, "miner-expiry", minerExpiryArg, "expiry value used when creating ask for miners")
 
 	// ExitOnError is set
 	flag.Parse(os.Args[1:]) // nolint: errcheck
@@ -80,6 +88,24 @@ func init() {
 		}
 
 		handleError(err, msg)
+		os.Exit(1)
+	}
+
+	_, ok := minerCollateral.SetString(minerCollateralArg, 10)
+	if !ok {
+		handleError(fmt.Errorf("could not parse miner-collateral"))
+		os.Exit(1)
+	}
+
+	_, ok = minerPrice.SetString(minerPriceArg)
+	if !ok {
+		handleError(fmt.Errorf("could not parse miner-price"))
+		os.Exit(1)
+	}
+
+	_, ok = minerExpiry.SetString(minerExpiryArg, 10)
+	if !ok {
+		handleError(fmt.Errorf("could not parse miner-expiry"))
 		os.Exit(1)
 	}
 }
@@ -108,7 +134,7 @@ func main() {
 	}()
 
 	if len(workdir) == 0 {
-		workdir, err = ioutil.TempDir("", "deal-maker")
+		workdir, err = ioutil.TempDir("", "network-miners")
 		if err != nil {
 			exitcode = handleError(err)
 			return
@@ -140,98 +166,58 @@ func main() {
 	options[lpfc.AttrFilecoinBinary] = binpath // Use the repo binary
 
 	genesisURI := env.GenesisCar()
+	if err != nil {
+		exitcode = handleError(err, "failed to retrieve miner information from genesis;")
+		return
+	}
 
 	fastenvOpts := fast.FilecoinOpts{
 		InitOpts:   []fast.ProcessInitOption{fast.PODevnet(network), fast.POGenesisFile(genesisURI)},
 		DaemonOpts: []fast.ProcessDaemonOption{},
 	}
 
-	// The genesis process is the filecoin node that loads the miner that is
-	// define with power in the genesis block, and the prefunnded wallet
-	node, err := env.NewProcess(ctx, lpfc.PluginName, options, fastenvOpts)
-	if err != nil {
-		exitcode = handleError(err, "failed to create genesis process;")
-		return
-	}
-
-	err = series.InitAndStart(ctx, node)
-	if err != nil {
-		exitcode = handleError(err, "failed series.InitAndStart;")
-		return
-	}
-
-	err = env.GetFunds(ctx, node)
-	if err != nil {
-		exitcode = handleError(err, "failed env.GetFunds;")
-		return
-	}
-
-	pparams, err := node.Protocol(ctx)
-	if err != nil {
-		exitcode = handleError(err, "failed node.Protocol;")
-		return
-	}
-
-	sinfo := pparams.SupportedSectors[0]
-
-	validMiners := make(map[string]struct{})
-	for _, miner := range flag.Args() {
-		validMiners[miner] = struct{}{}
-	}
-
-	for {
-		dec, err := node.ClientListAsks(ctx)
+	// Create the processes that we will use to become miners
+	var miners []*fast.Filecoin
+	for i := 0; i < minerCount; i++ {
+		miner, err := env.NewProcess(ctx, lpfc.PluginName, options, fastenvOpts)
 		if err != nil {
-			fmt.Printf("ERROR: failed to list asks\n")
-			continue
+			exitcode = handleError(err, "failed to create miner process;")
+			return
 		}
 
-		asks := make(map[string]porcelain.Ask)
-		for {
-			var ask porcelain.Ask
+		miners = append(miners, miner)
+	}
 
-			err := dec.Decode(&ask)
-			if err != nil && err != io.EOF {
-				fmt.Printf("ERROR: %s\n", err)
-				continue
-			}
-
-			if err == io.EOF {
-				break
-			}
-
-			askMiner := ask.Miner.String()
-
-			if _, ok := validMiners[askMiner]; ok {
-				// Is a valid miner to make a deal with
-
-				if a, ok := asks[askMiner]; ok && a.ID > ask.ID {
-					continue
-				}
-
-				asks[askMiner] = ask
-			}
+	for _, miner := range miners {
+		err = series.InitAndStart(ctx, miner)
+		if err != nil {
+			exitcode = handleError(err, "failed series.InitAndStart;")
+			return
 		}
 
-		if len(asks) == 0 {
-			time.Sleep(time.Minute)
+		err = env.GetFunds(ctx, miner)
+		if err != nil {
+			exitcode = handleError(err, "failed env.GetFunds;")
+			return
 		}
 
-		for _, ask := range asks {
-			dataReader := io.LimitReader(rand.Reader, int64(sinfo.MaxPieceSize.Uint64()))
-			_, deal, err := series.ImportAndStoreWithDuration(ctx, node, ask, 256, files.NewReaderFile(dataReader))
-			if err != nil {
-				fmt.Printf("ERROR: %s\n", err)
-				continue
-			}
+		pparams, err := miner.Protocol(ctx)
+		if err != nil {
+			exitcode = handleError(err, "failed to get protocol;")
+			return
+		}
 
-			_, err = series.WaitForDealState(ctx, node, deal, storagedeal.Complete)
-			if err != nil {
-				fmt.Printf("ERROR: %s\n", err)
-				continue
-			}
+		sinfo := pparams.SupportedSectors[0]
+
+		_, err = series.CreateStorageMinerWithAsk(ctx, miner, minerCollateral, minerPrice, minerExpiry, sinfo.Size)
+		if err != nil {
+			exitcode = handleError(err, "failed series.CreateStorageMinerWithAsk;")
+			return
 		}
 	}
+
+	fmt.Println("Finished!")
+	fmt.Println("Ctrl-C to exit")
 
 	<-exit
 }
@@ -304,6 +290,3 @@ func getGoPath() (string, error) {
 
 	return filepath.Join(home, "go"), nil
 }
-
-/*
- */
