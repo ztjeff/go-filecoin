@@ -7,7 +7,7 @@ Image: "657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin:fast-deploy-4"
 # For EKS
 StorageClassName: gp2
 ProofParamsDir: "/opt/filecoin-proof-parameters"
-ImageTests: "657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-tests:latest"
+ImageTests: "657871693752.dkr.ecr.us-east-1.amazonaws.com/filecoin-tests:latest-2"
 Network: "user"
 Bootstrap:
   Replicas: 3
