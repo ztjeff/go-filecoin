@@ -1,0 +1,47 @@
+FROM ubuntu:18.04 AS filecoin
+MAINTAINER Filecoin Dev Team
+
+# Base resources
+COPY --from=filecoin-base /etc/ssl/certs                       /etc/ssl/certs
+COPY --from=filecoin-base /lib/x86_64-linux-gnu/libdl-2.24.so  /lib/x86_64-linux-gnu/libdl-2.24.so
+COPY --from=filecoin-base /lib/x86_64-linux-gnu/librt.so.1     /lib/x86_64-linux-gnu/librt.so.1
+COPY --from=filecoin-base /lib/x86_64-linux-gnu/libgcc_s.so.1  /lib/x86_64-linux-gnu/libgcc_s.so.1
+COPY --from=filecoin-base /lib/x86_64-linux-gnu/libutil.so.1   /lib/x86_64-linux-gnu/libutil.so.1
+
+# Built resources
+COPY --from=filecoin-base /go/go-filecoin/tools/fast/devnets/deploy/deploy-sh           /usr/local/bin/deploy-sh
+COPY --from=filecoin-base /go/go-filecoin/go-filecoin                                   /usr/local/bin/go-filecoin
+COPY --from=filecoin-base /go/go-filecoin/gengen/gengen                                 /usr/local/bin/gengen
+COPY --from=filecoin-base /go/go-filecoin/tools/faucet/faucet                           /usr/local/bin/faucet
+COPY --from=filecoin-base /go/go-filecoin/tools/fast/devnets/deploy/deploy              /usr/local/bin/deploy
+COPY --from=filecoin-base /go/go-filecoin/network-deployment.test                       /usr/local/bin/network-deployment.test
+COPY --from=filecoin-base /go/go-filecoin/proofs/bin/paramfetch                         /usr/local/bin/paramfetch
+COPY --from=filecoin-base /go/go-filecoin/proofs/bin/paramcache                         /usr/local/bin/paramcache
+COPY --from=filecoin-base /go/go-filecoin/tools/genesis-file-server/genesis-file-server /usr/local/bin/genesis-file-server
+
+RUN adduser --home /var/filecoin -u 1000 --ingroup users --disabled-password --gecos "" filecoin
+RUN id filecoin
+
+ENV FILECOIN_PARAMETER_CACHE="/var/filecoin-proof-parameters"
+ENV FIL_PATH /var/filecoin/repo
+
+# Swarm
+EXPOSE 6000
+
+# API
+EXPOSE 3453
+
+# Location of repo / sectors
+VOLUME /var/filecoin
+
+# Location of proof parameter files
+VOLUME /var/filecoin-proof-parameters
+
+# Location of operational setup files
+VOLUME /opt/filecoin
+
+USER filecoin
+
+ENTRYPOINT ["/usr/local/bin/deploy-sh"]
+
+CMD ["-help"]

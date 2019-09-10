@@ -354,6 +354,8 @@ func main() {
 		buildDeploy()
 	case "build-network-deployment-test":
 		buildNetworkDeploymentTest()
+	case "build-genesis-file-server":
+		buildGenesisFileServer()
 	case "generate-genesis":
 		generateGenesis()
 	case "build-migrations":
