@@ -24,7 +24,7 @@ import (
 // Devnet is a FAST lib environment that is meant to be used
 // when working with kittyhawk devnets run by the Filecoin development team.
 type Devnet struct {
-	network  string
+	network  DevnetNetwork
 	location string
 
 	log logging.EventLogger
@@ -36,9 +36,51 @@ type Devnet struct {
 	processCount   int
 }
 
+type DevnetNetwork struct {
+	NetworkName     string
+	GenesisLocation string
+	FacuetURL       string
+}
+
+const (
+	DevnetUser = DevnetNetwork{
+		NetworkName:     "user",
+		GenesisLocation: "https://genesis.user.kittyhawk.wtf/genesis.car",
+		FacuetURL:       "https://faucet.user.kittyhawk.wtf/tap",
+	}
+	DevnetNightly = DevnetNetwork{
+		NetworkName:     "nightly",
+		GenesisLocation: "https://genesis.nightly.kittyhawk.wtf/genesis.car",
+		FacuetURL:       "https://faucet.nightly.kittyhawk.wtf/tap",
+	}
+	DevnetStaging = DevnetNetwork{
+		NetworkName:     "staging",
+		GenesisLocation: "https://genesis.staging.kittyhawk.wtf/genesis.car",
+		FacuetURL:       "https://faucet.staging.kittyhawk.wtf/tap",
+	}
+	DevnetNetworkTest = DevnetNetwork{
+		NetworkName:     "network-test",
+		GenesisLocation: "http://filecoin-genesis-0.filecoin-genesis.network-test.svc.cluster.local:8080/genesis.car",
+		FacuetURL:       "http://filecoin-genesis-0.filecoin-genesis.network-test.svc.cluster.local:9797/tap",
+	}
+
+	networkList = []DevnetNetwork{DevnetUser, DevnetNightly, DevnetStaging, DevnetNetworkTest}
+)
+
+func FindDevnetNetworkByName(name string) DevnetNetwork {
+
+	for _, network := range networkList {
+		if name == network.NetworkName {
+			return network, nil
+		}
+	}
+
+	return DevnetNetwork{}, fmt.Errorf("could not find network by name %s", name)
+}
+
 // NewDevnet builds an environment that uses deployed infrastructure to
 // the kittyhawk devnets.
-func NewDevnet(network, location string) (Environment, error) {
+func NewDevnet(network DevnetNetwork, location string) (Environment, error) {
 	env := &Devnet{
 		network:  network,
 		location: location,
@@ -54,13 +96,7 @@ func NewDevnet(network, location string) (Environment, error) {
 
 // GenesisCar provides a url where the genesis file can be fetched from
 func (e *Devnet) GenesisCar() string {
-	uri := url.URL{
-		Host:   fmt.Sprintf("genesis.%s.kittyhawk.wtf", e.network),
-		Path:   "genesis.car",
-		Scheme: "https",
-	}
-
-	return uri.String()
+	return e.network.GenesisLocation
 }
 
 // GenesisMiner returns a ErrNoGenesisMiner for this environment
@@ -172,13 +208,7 @@ func (e *Devnet) GetFunds(ctx context.Context, p *fast.Filecoin) error {
 	data := url.Values{}
 	data.Set("target", toAddr.String())
 
-	uri := url.URL{
-		Host:   "filecoin-genesis-0.filecoin-genesis.network-test.svc.cluster.local:9797",
-		Path:   "tap",
-		Scheme: "http",
-	}
-
-	resp, err := http.PostForm(uri.String(), data)
+	resp, err := http.PostForm(e.network.FacuetURL, data)
 	if err != nil {
 		return err
 	}

@@ -137,7 +137,7 @@ func TestRetrievalDevnet(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create an environment that includes a genesis block with 1MM FIL
-	env, err := environment.NewDevnet("nightly", dir)
+	env, err := environment.NewDevnet(environment.DevnetNightly, dir)
 	require.NoError(t, err)
 
 	// Teardown will shutdown all running processes the environment knows about
@@ -158,7 +158,7 @@ func TestRetrievalDevnet(t *testing.T) {
 	genesisURI := env.GenesisCar()
 
 	fastenvOpts := fast.FilecoinOpts{
-		InitOpts:   []fast.ProcessInitOption{fast.POGenesisFile(genesisURI), fast.PODevnetNightly()},
+		InitOpts:   []fast.ProcessInitOption{fast.POGenesisFile(genesisURI), fast.PODevnet(environment.DevnetNightly.NetworkName)},
 		DaemonOpts: []fast.ProcessDaemonOption{},
 	}
 

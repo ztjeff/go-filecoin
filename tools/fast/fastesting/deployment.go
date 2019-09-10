@@ -38,7 +38,7 @@ type DeploymentEnvironment struct {
 // tests using the FAST library. DeploymentEnvironment also supports testing locally using
 // the `local` network which will handle setting up a mining node and updating bootstrap
 // peers. The local network runs at 5 second blocktimes.
-func NewDeploymentEnvironment(ctx context.Context, t *testing.T, network string, fastenvOpts fast.FilecoinOpts, binary string) (context.Context, *DeploymentEnvironment) {
+func NewDeploymentEnvironment(ctx context.Context, t *testing.T, networkName string, fastenvOpts fast.FilecoinOpts, binary string) (context.Context, *DeploymentEnvironment) {
 
 	// Create a directory for the test using the test name (mostly for FAST)
 	// Replace the forward slash as tempdir can't handle them
@@ -48,6 +48,9 @@ func NewDeploymentEnvironment(ctx context.Context, t *testing.T, network string,
 	if network == "local" {
 		return makeLocal(ctx, t, dir, fastenvOpts, binary)
 	}
+
+	network, err := environment.FindDevnetNetworkByName(networkName)
+	require.NoError(t, err)
 
 	return makeDevnet(ctx, t, network, dir, fastenvOpts, binary)
 }
@@ -112,7 +115,7 @@ func makeLocal(ctx context.Context, t *testing.T, dir string, fastenvOpts fast.F
 	}
 }
 
-func makeDevnet(ctx context.Context, t *testing.T, network string, dir string, fastenvOpts fast.FilecoinOpts, binary string) (context.Context, *DeploymentEnvironment) {
+func makeDevnet(ctx context.Context, t *testing.T, network environment.DevnetNetwork, dir string, fastenvOpts fast.FilecoinOpts, binary string) (context.Context, *DeploymentEnvironment) {
 	// Create an environment that includes a genesis block with 1MM FIL
 	env, err := environment.NewDevnet(network, dir)
 	require.NoError(t, err)

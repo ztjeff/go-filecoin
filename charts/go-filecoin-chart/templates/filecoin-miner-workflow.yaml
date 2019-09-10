@@ -15,7 +15,7 @@ spec:
           command: [
             "network-deployment.test",
             "-test.run=TestMinerWorkflow",
-            "-deployment={{ .Values.Network }}",
+            "-deployment={{ $relnamespace }}",
             "-binary=/usr/local/bin/go-filecoin",
           ]
           volumeMounts:
