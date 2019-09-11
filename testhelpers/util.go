@@ -40,7 +40,12 @@ func MustGetFilecoinBinary() string {
 func GetFilecoinBinary() (string, error) {
 	bin, provided := testflags.BinaryPath()
 	if !provided {
-		bin = ProjectRoot("go-filecoin")
+		gopath, err := GetGoPath()
+		if err != nil {
+			return "", err
+		}
+
+		bin = filepath.Join(gopath, "/src/github.com/filecoin-project/go-filecoin/go-filecoin")
 	}
 
 	_, err := os.Stat(bin)
