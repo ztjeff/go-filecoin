@@ -42,23 +42,23 @@ type DevnetNetwork struct {
 	FacuetURL       string
 }
 
-const (
-	DevnetUser = DevnetNetwork{
+var (
+	DevnetUser DevnetNetwork = DevnetNetwork{
 		NetworkName:     "user",
 		GenesisLocation: "https://genesis.user.kittyhawk.wtf/genesis.car",
 		FacuetURL:       "https://faucet.user.kittyhawk.wtf/tap",
 	}
-	DevnetNightly = DevnetNetwork{
+	DevnetNightly DevnetNetwork = DevnetNetwork{
 		NetworkName:     "nightly",
 		GenesisLocation: "https://genesis.nightly.kittyhawk.wtf/genesis.car",
 		FacuetURL:       "https://faucet.nightly.kittyhawk.wtf/tap",
 	}
-	DevnetStaging = DevnetNetwork{
+	DevnetStaging DevnetNetwork = DevnetNetwork{
 		NetworkName:     "staging",
 		GenesisLocation: "https://genesis.staging.kittyhawk.wtf/genesis.car",
 		FacuetURL:       "https://faucet.staging.kittyhawk.wtf/tap",
 	}
-	DevnetNetworkTest = DevnetNetwork{
+	DevnetNetworkTest DevnetNetwork = DevnetNetwork{
 		NetworkName:     "network-test",
 		GenesisLocation: "http://filecoin-genesis-0.filecoin-genesis.network-test.svc.cluster.local:8080/genesis.car",
 		FacuetURL:       "http://filecoin-genesis-0.filecoin-genesis.network-test.svc.cluster.local:9797/tap",
@@ -67,7 +67,7 @@ const (
 	networkList = []DevnetNetwork{DevnetUser, DevnetNightly, DevnetStaging, DevnetNetworkTest}
 )
 
-func FindDevnetNetworkByName(name string) DevnetNetwork {
+func FindDevnetNetworkByName(name string) (DevnetNetwork, error) {
 
 	for _, network := range networkList {
 		if name == network.NetworkName {

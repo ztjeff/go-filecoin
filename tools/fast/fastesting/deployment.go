@@ -45,7 +45,7 @@ func NewDeploymentEnvironment(ctx context.Context, t *testing.T, networkName str
 	dir, err := ioutil.TempDir("", strings.Replace(t.Name(), "/", ".", -1))
 	require.NoError(t, err)
 
-	if network == "local" {
+	if networkName == "local" {
 		return makeLocal(ctx, t, dir, fastenvOpts, binary)
 	}
 
@@ -132,7 +132,7 @@ func makeDevnet(ctx context.Context, t *testing.T, network environment.DevnetNet
 
 	genesisURI := "/opt/filecoin/genesis.car" //env.GenesisCar()
 
-	fastenvOpts.InitOpts = append(fastenvOpts.InitOpts, fast.POGenesisFile(genesisURI), fast.PODevnet(network))
+	fastenvOpts.InitOpts = append(fastenvOpts.InitOpts, fast.POGenesisFile(genesisURI), fast.PODevnet(network.NetworkName))
 
 	ctx = series.SetCtxSleepDelay(ctx, time.Second*30)
 

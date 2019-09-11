@@ -1,8 +1,12 @@
 
 from-copy:
 	docker build -t filecoin-base -f Dockerfile.devnet.copy-base .
-	docker build -t filecoin -f Dockerfile.devnet.filecoin --from-cache filecoin-base:latest .
+	docker build -t filecoin -f Dockerfile.devnet.filecoin --cache-from filecoin-base:latest .
+
+.PHONY: from-copy
 
 from-build:
-	docker build -t filecoin-base -f Dockerfile.devnet.copy-base .
-	docker build -t filecoin -f Dockerfile.devnet.filecoin --from-cache filecoin-base:latest .
+	docker build -t filecoin-base -f Dockerfile.devnet.build-base .
+	docker build -t filecoin -f Dockerfile.devnet.filecoin --cache-from filecoin-base:latest .
+
+.PHONY: from-build
