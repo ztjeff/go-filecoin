@@ -855,7 +855,7 @@ func (sm *Miner) submitPoSt(ctx context.Context, start, end *types.BlockHeight, 
 		log.Errorf("failed to get worker address: %s", err)
 		return
 	}
-	_, err = sm.porcelainAPI.MessageSend(ctx, workerAddr, sm.minerAddr, submission.Fee, gasPrice, submission.GasLimit, "submitPoSt", submission.Proof, submission.Faults, done)
+	_, err = sm.porcelainAPI.MessageSend(ctx, workerAddr, sm.minerAddr, submission.Fee, gasPrice, submission.GasLimit, "submitPoSt", submission.Proof, done)
 	if err != nil {
 		log.Errorf("failed to submit PoSt: %s", err)
 		return

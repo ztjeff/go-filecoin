@@ -478,7 +478,7 @@ func TestOnNewHeaviestTipSet(t *testing.T) {
 		done.Wait()
 
 		// assert proof generated in sector builder is sent to submitPoSt
-		require.Equal(t, 3, len(postParams))
+		require.Equal(t, 2, len(postParams))
 		assert.Equal(t, types.PoStProof([]byte("test proof")), postParams[0])
 	})
 

@@ -550,7 +550,7 @@ func (mal *minerActorLiason) requireAddFaults(blockHeight uint64, faults types.F
 
 func (mal *minerActorLiason) requirePoSt(blockHeight uint64, done types.IntSet) {
 	mal.requireHeightNotPast(blockHeight)
-	res, err := th.CreateAndApplyTestMessage(mal.t, mal.st, mal.vms, mal.minerAddr, 0, blockHeight, "submitPoSt", mal.ancestors, th.MakeRandomPoStProofForTest(), types.EmptyFaultSet(), done)
+	res, err := th.CreateAndApplyTestMessage(mal.t, mal.st, mal.vms, mal.minerAddr, 0, blockHeight, "submitPoSt", mal.ancestors, th.MakeRandomPoStProofForTest(), done)
 	assert.NoError(mal.t, err)
 	assert.NoError(mal.t, res.ExecutionError)
 	assert.Equal(mal.t, uint8(0), res.Receipt.ExitCode)
@@ -589,7 +589,7 @@ func (mal *minerActorLiason) requireTotalStorage(queryHeight uint64) *types.Byte
 
 func (mal *minerActorLiason) assertPoStFail(blockHeight uint64, done types.IntSet, exitCode uint8) {
 	mal.requireHeightNotPast(blockHeight)
-	res, err := th.CreateAndApplyTestMessage(mal.t, mal.st, mal.vms, mal.minerAddr, 0, blockHeight, "submitPoSt", mal.ancestors, th.MakeRandomPoStProofForTest(), types.EmptyFaultSet(), done)
+	res, err := th.CreateAndApplyTestMessage(mal.t, mal.st, mal.vms, mal.minerAddr, 0, blockHeight, "submitPoSt", mal.ancestors, th.MakeRandomPoStProofForTest(), done)
 	assert.NoError(mal.t, err)
 	assert.Error(mal.t, res.ExecutionError)
 	assert.Equal(mal.t, exitCode, res.Receipt.ExitCode)
@@ -769,7 +769,7 @@ func TestMinerSubmitPoStVerification(t *testing.T) {
 		miner := Actor{Bootstrap: false}
 
 		testProof := th.MakeRandomPoStProofForTest()
-		_, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyFaultSet(), types.EmptyIntSet())
+		_, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyIntSet())
 		require.NoError(t, err)
 
 		require.NotNil(t, verifier.LastReceivedVerifyPoStRequest)
@@ -804,7 +804,7 @@ func TestMinerSubmitPoStVerification(t *testing.T) {
 		miner := Actor{Bootstrap: false}
 
 		testProof := th.MakeRandomPoStProofForTest()
-		code, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyFaultSet(), types.NewIntSet())
+		code, err := miner.SubmitPoSt(vmctx, testProof, types.NewIntSet())
 		require.Error(t, err)
 		assert.Equal(t, "miner ProvingSet sector id 4 missing in SectorCommitments", err.Error())
 		assert.True(t, vmerrors.IsFault(err))
@@ -828,7 +828,7 @@ func TestMinerSubmitPoStVerification(t *testing.T) {
 		miner := Actor{Bootstrap: false}
 
 		testProof := th.MakeRandomPoStProofForTest()
-		code, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyFaultSet(), types.NewIntSet())
+		code, err := miner.SubmitPoSt(vmctx, testProof, types.NewIntSet())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "verifier error")
 		assert.True(t, vmerrors.ShouldRevert(err))
@@ -852,7 +852,7 @@ func TestMinerSubmitPoStVerification(t *testing.T) {
 		miner := Actor{Bootstrap: false}
 
 		testProof := th.MakeRandomPoStProofForTest()
-		code, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyFaultSet(), types.NewIntSet())
+		code, err := miner.SubmitPoSt(vmctx, testProof, types.NewIntSet())
 		require.Error(t, err)
 		assert.Equal(t, Errors[ErrInvalidPoSt], err)
 		assert.True(t, vmerrors.ShouldRevert(err))
@@ -1045,7 +1045,7 @@ func TestMinerSubmitPoStFaults(t *testing.T) {
 		miner := Actor{Bootstrap: false}
 
 		testProof := th.MakeRandomPoStProofForTest()
-		_, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyFaultSet(), types.EmptyIntSet())
+		_, err := miner.SubmitPoSt(vmctx, testProof, types.EmptyIntSet())
 		require.NoError(t, err)
 
 		newState := State{}
@@ -1070,7 +1070,6 @@ func TestMinerSubmitPoSt(t *testing.T) {
 	minerAddr := th.CreateTestMiner(t, st, vms, address.TestAddress, origPid)
 	proof := th.MakeRandomPoStProofForTest()
 	doneDefault := types.EmptyIntSet()
-	faultsDefault := types.EmptyFaultSet()
 
 	miner := state.MustGetActor(st, minerAddr)
 	minerBalance := miner.Balance
@@ -1096,7 +1095,7 @@ func TestMinerSubmitPoSt(t *testing.T) {
 
 	t.Run("on-time PoSt succeeds", func(t *testing.T) {
 		// submit post
-		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, firstCommitBlockHeight+5, "submitPoSt", ancestors, proof, faultsDefault, doneDefault)
+		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, firstCommitBlockHeight+5, "submitPoSt", ancestors, proof, doneDefault)
 		assert.NoError(t, err)
 		assert.NoError(t, res.ExecutionError)
 		assert.Equal(t, uint8(0), res.Receipt.ExitCode)
@@ -1110,14 +1109,14 @@ func TestMinerSubmitPoSt(t *testing.T) {
 
 	t.Run("after proving period grace period PoSt is rejected", func(t *testing.T) {
 		// Rejected one block late
-		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, lastPossibleSubmission+1, "submitPoSt", ancestors, proof, faultsDefault, doneDefault)
+		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, lastPossibleSubmission+1, "submitPoSt", ancestors, proof, doneDefault)
 		assert.NoError(t, err)
 		assert.Error(t, res.ExecutionError)
 	})
 
 	t.Run("late submission charged fee", func(t *testing.T) {
 		// Rejected on the deadline with message value not carrying sufficient fees
-		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, lastPossibleSubmission, "submitPoSt", ancestors, proof, faultsDefault, doneDefault)
+		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, lastPossibleSubmission, "submitPoSt", ancestors, proof, doneDefault)
 		assert.NoError(t, err)
 		assert.Error(t, res.ExecutionError)
 
@@ -1127,7 +1126,7 @@ func TestMinerSubmitPoSt(t *testing.T) {
 		fee := types.NewAttoFILFromBytes(res.Receipt.Return[0])
 		require.False(t, fee.IsZero())
 
-		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 1, lastPossibleSubmission, "submitPoSt", ancestors, proof, faultsDefault, doneDefault)
+		res, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 1, lastPossibleSubmission, "submitPoSt", ancestors, proof, doneDefault)
 		assert.NoError(t, err)
 		assert.NoError(t, res.ExecutionError)
 		assert.Equal(t, uint8(0), res.Receipt.ExitCode)
@@ -1162,7 +1161,7 @@ func TestMinerSubmitPoSt(t *testing.T) {
 		vmctx.BlockHeightValue = types.NewBlockHeight(secondProvingPeriodEnd - PoStChallengeWindowBlocks + 30)
 
 		miner := Actor{}
-		code, err := miner.SubmitPoSt(vmctx, []byte{}, types.EmptyFaultSet(), types.EmptyIntSet())
+		code, err := miner.SubmitPoSt(vmctx, []byte{}, types.EmptyIntSet())
 		require.NoError(t, err)
 		require.Equal(t, uint8(0), code)
 
@@ -1191,7 +1190,7 @@ func TestMinerSubmitPoSt(t *testing.T) {
 		vmctx.BlockHeightValue = types.NewBlockHeight(secondProvingPeriodEnd + LargestSectorSizeProvingPeriodBlocks - PoStChallengeWindowBlocks + 30)
 
 		miner := Actor{}
-		code, err := miner.SubmitPoSt(vmctx, []byte{}, types.EmptyFaultSet(), types.EmptyIntSet())
+		code, err := miner.SubmitPoSt(vmctx, []byte{}, types.EmptyIntSet())
 		require.NoError(t, err)
 		require.Equal(t, uint8(0), code)
 
@@ -1217,7 +1216,7 @@ func TestMinerSubmitPoSt(t *testing.T) {
 		vmctx.BlockHeightValue = types.NewBlockHeight(secondProvingPeriodEnd + LargestSectorSizeProvingPeriodBlocks - PoStChallengeWindowBlocks - 25)
 
 		miner := Actor{}
-		code, err := miner.SubmitPoSt(vmctx, []byte{}, types.EmptyFaultSet(), types.EmptyIntSet())
+		code, err := miner.SubmitPoSt(vmctx, []byte{}, types.EmptyIntSet())
 		require.Error(t, err)
 		require.NotEqual(t, uint8(0), code)
 
@@ -1300,7 +1299,6 @@ func TestActorSlashStorageFault(t *testing.T) {
 		ancestors := builder.RequireTipSets(head.Key(), 10)
 		proof := th.MakeRandomPoStProofForTest()
 		doneDefault := types.EmptyIntSet()
-		faultsDefault := types.EmptyFaultSet()
 
 		// add a sector
 		_, err := th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, firstCommitBlockHeight, "commitSector", ancestors, uint64(1), th.MakeCommitment(), th.MakeCommitment(), th.MakeCommitment(), th.MakeRandomBytes(types.TwoPoRepProofPartitions.ProofLen()))
@@ -1311,11 +1309,11 @@ func TestActorSlashStorageFault(t *testing.T) {
 		require.NoError(t, err)
 
 		// submit post (first sector only)
-		_, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, secondProvingPeriodStart, "submitPoSt", ancestors, proof, faultsDefault, doneDefault)
+		_, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, secondProvingPeriodStart, "submitPoSt", ancestors, proof, doneDefault)
 		require.NoError(t, err)
 
 		// submit post (both sectors
-		_, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, thirdProvingPeriodStart, "submitPoSt", ancestors, proof, faultsDefault, doneDefault)
+		_, err = th.CreateAndApplyTestMessage(t, st, vms, minerAddr, 0, thirdProvingPeriodStart, "submitPoSt", ancestors, proof, doneDefault)
 		assert.NoError(t, err)
 
 		return st, vms, minerAddr

@@ -68,7 +68,6 @@ type PoStSubmission struct {
 	Proof    types.PoStProof
 	Fee      types.AttoFIL
 	GasLimit types.GasUnits
-	Faults   types.FaultSet
 }
 
 // NewProver constructs a new Prover.
@@ -144,7 +143,6 @@ func (p *Prover) CalculatePoSt(ctx context.Context, start, end *types.BlockHeigh
 		Proof:    proof,
 		Fee:      feeDue,
 		GasLimit: types.NewGasUnits(submitPostGasLimit),
-		Faults:   types.EmptyFaultSet(),
 	}, nil
 }
 

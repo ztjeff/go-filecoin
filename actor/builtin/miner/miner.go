@@ -274,7 +274,7 @@ var minerExports = exec.Exports{
 		Return: []abi.Type{},
 	},
 	"submitPoSt": &exec.FunctionSignature{
-		Params: []abi.Type{abi.PoStProof, abi.FaultSet, abi.IntSet},
+		Params: []abi.Type{abi.PoStProof, abi.IntSet},
 		Return: []abi.Type{},
 	},
 	"slashStorageFault": &exec.FunctionSignature{
@@ -887,7 +887,7 @@ func (ma *Actor) AddFaults(ctx exec.VMContext, faults types.FaultSet) (uint8, er
 
 // SubmitPoSt is used to submit a coalesced PoST to the chain to convince the chain
 // that you have been actually storing the files you claim to be.
-func (ma *Actor) SubmitPoSt(ctx exec.VMContext, poStProof types.PoStProof, faults types.FaultSet, done types.IntSet) (uint8, error) {
+func (ma *Actor) SubmitPoSt(ctx exec.VMContext, poStProof types.PoStProof, done types.IntSet) (uint8, error) {
 	if err := ctx.Charge(actor.DefaultGasCost); err != nil {
 		return exec.ErrInsufficientGas, errors.RevertErrorWrap(err, "Insufficient gas")
 	}

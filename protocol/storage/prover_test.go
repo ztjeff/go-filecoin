@@ -40,7 +40,6 @@ func TestProver(t *testing.T) {
 			lateFee:       types.ZeroAttoFIL,
 			balance:       collateralRequirement,
 			proof:         []byte{1, 2, 3, 4},
-			faults:        []uint64{},
 		}
 	}
 
@@ -119,7 +118,6 @@ type fakeProverContext struct {
 	lateFee       types.AttoFIL
 	balance       types.AttoFIL
 	proof         types.PoStProof
-	faults        []uint64
 }
 
 func (f *fakeProverContext) ChainHeadKey() types.TipSetKey {
