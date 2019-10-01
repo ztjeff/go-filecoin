@@ -1,35 +1,44 @@
 # Default values for go-filecoin-devnet.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-Image: ""
-ImageTests: ""
-ImageFaucet: ""
-# For MicroK8S
-# StorageClassName: microk8s-hostpath
-# For EKS
-StorageClassName: gp2
-ProofParamsDir: "/opt/filecoin-proof-parameters"
-EKSName: "alpha-eks"
+
+BlockExplorer:
+  Enabled: true
 Bootstrap:
+  Enabled: true
   Replicas: 3
   # Make sure no other services in eks cluster use this port + N replicas
   # ie. 30600:30602
   NodePortStart: 30600
-Miner:
-  Replicas: 3
-Sprinkler:
-  CronJobConcurrencyPolicy: Forbid
-  Schedule: "*/5 * * * *"
+EKSName: "alpha-eks"
 Genesis:
+  Enabled: true
   WalletAddress: "t1m2lbhq3sgsv6524a5o76vtwitdjosqmounayv3i"
   MinerAddress: "t2xvao7yi3llzsvrdx7mbw4dtbw6wkav7lyzsbpoq"
+GenesisFileserver:
+  Enabled: true
+Image: ""
+ImageTests: ""
+ImageFaucet: ""
+Miner:
+  Enabled: true
+  Replicas: 3
+  StorageSize: 75Gi
+  FaucetURL: ""
+Network: ""
+ProofParamsDir: "/opt/filecoin-proof-parameters"
 Secrets:
   GenesisFile: ""
-  Wallt0Key: ""
+  Wallet0Key: ""
   Peer0Key: ""
   Peer1Key: ""
   Peer2Key: ""
   Peer3Key: ""
-ALB:
-  ACM: "arn:aws:acm:us-east-1:657871693752:certificate/468a4a8a-3778-44ad-821f-d788bb2e898d"
-  Domain: "kittyhawk.wtf"
+Sprinkler:
+  Enabled: true
+  CronJobConcurrencyPolicy: Forbid
+  Schedule: "*/5 * * * *"
+# For MicroK8S
+# StorageClassName: microk8s-hostpath
+# For EKS
+StorageClassName: gp2

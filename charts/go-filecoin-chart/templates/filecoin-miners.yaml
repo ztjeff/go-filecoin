@@ -1,3 +1,4 @@
+{{- if .Values.Miner.Enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -25,21 +26,31 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
 {{- $relnamespace := .Release.Namespace }}
-{{- range $k, $v := until (atoi (quote .Values.Miner.Replicas) | default 3) }}
+{{- $faucetURL := .Values.FaucetURL }}
+{{- $network := .Values.Network }}
+{{- range $k, $v := until (atoi (printf "%d" (int64 .Values.Miner.Replicas))) }}
   filecoin-miners-{{$v}}.json: |
     {
       "WorkingDir": "/var/filecoin",
       "GenesisCarFile":"/opt/filecoin/genesis.car",
+      {{- if $faucetURL }}
+      "FaucetURL": "{{ $faucetURL }}"
+      {{- else }}
       "FaucetURL": "http://filecoin-genesis-0.filecoin-genesis.{{ $relnamespace }}.svc.cluster.local:9797/tap",
+      {{- end }}
       "AutoSealInterval": 120,
+      {{- if $network }}
+      "Network": "{{ $network }}",
+      {{- else }}
       "Network": "{{ $relnamespace }}",
+      {{- end }}
       "BlockTime": "30s",
       "LogJSON": "1",
       "LogLevel":"5",
       "Collateral": 10,
       "AskPrice": "0.000000001",
       "AskExpiry": 100,
-      "SectorSize": 268435456
+      "SectorSize": "268435456"
     }
 {{ end }}
 
@@ -128,6 +139,7 @@ spec:
               mountPath: /opt/filecoin-proof-parameters
             - name: config-volume
               mountPath: /opt/filecoin-deploy
+        {{- if .Values.Genesis.Enabled }}
         - name: genesis-ready-check
           image: "giantswarm/tiny-tools"
           imagePullPolicy: Always
@@ -136,6 +148,7 @@ spec:
             "-c",
             "curl -s http://filecoin-genesis-0.filecoin-genesis.{{ .Release.Namespace }}.svc.cluster.local:3453/api/mining/status | grep true"
           ]
+        {{- end }}
       securityContext:
         runAsUser: 1000
         runAsGroup: 100
@@ -158,7 +171,5 @@ spec:
       storageClassName: "{{ .Values.StorageClassName }}"
       resources:
         requests:
-          storage: 50Gi
-
-
-
+          storage: {{ .Values.Miner.StorageSize}}
+{{ end }}

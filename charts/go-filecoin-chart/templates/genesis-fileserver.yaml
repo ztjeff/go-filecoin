@@ -1,3 +1,4 @@
+{{ if .Values.GenesisFileserver.Enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -74,3 +75,4 @@ spec:
       - name: nginx-config-volume
         configMap:
           name: genesis-nginx-configs
+{{ end }}

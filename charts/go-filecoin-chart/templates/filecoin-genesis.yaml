@@ -1,3 +1,4 @@
+{{ if .Values.Genesis.Enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -52,19 +53,26 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
 {{- $relnamespace := .Release.Namespace }}
+{{- $network := .Values.Network }}
   filecoin-genesis-0.json: |
     {
       "WorkingDir": "/var/filecoin",
       "GenesisCarFile":"/opt/filecoin/genesis.car",
       "PeerkeyFile": "/opt/filecoin/peer0.key",
       "AutoSealInterval": 120,
+      {{- if $network }}
+      "Network": "{{ $network }}",
+      {{- else }}
       "Network": "{{ $relnamespace }}",
+      {{- end }}
       "BlockTime": "30s",
       "LogJSON": "1",
       "LogLevel":"5",
       "WalletFile": "/opt/filecoin/0.key",
       "MinerAddress": "{{ .Values.Genesis.MinerAddress }}"
     }
+}
+}
 
 ---
 apiVersion: apps/v1
@@ -167,6 +175,7 @@ spec:
               mountPath: /opt/filecoin-proof-parameters
             - name: config-volume
               mountPath: /opt/filecoin-deploy
+        {{- if .Values.Bootstrap.Enabled }}
         - name: bootstrap-ready-check
           image: "giantswarm/tiny-tools"
           imagePullPolicy: Always
@@ -176,6 +185,7 @@ spec:
             "-c",
             "curl -s http://filecoin-bootstrappers-{{ $lastBootstrapOrd }}-0.filecoin-bootstrappers-{{ $lastBootstrapOrd }}.{{ .Release.Namespace }}.svc.cluster.local:3453/api/id"
           ]
+        {{- end }}
       securityContext:
         runAsUser: 1000
         runAsGroup: 100
@@ -202,3 +212,4 @@ spec:
       resources:
         requests:
           storage: 20Gi
+{{ end }}

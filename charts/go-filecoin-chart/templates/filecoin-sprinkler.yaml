@@ -1,3 +1,4 @@
+{{ if .Values.Sprinkler.Enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,6 +6,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
 {{- $relnamespace := .Release.Namespace }}
+{{- $network := .Values.Network }}
   filecoin-sprinkler.json: |
     {
       "WorkingDir": "/var/filecoin",
@@ -12,7 +14,11 @@ data:
       "FaucetURL": "http://filecoin-genesis-0.filecoin-genesis.{{ .Release.Namespace }}.svc.cluster.local:9797/tap",
       "MaxPrice": "0.000000001",
       "AutoSealInterval": 120,
+      {{- if $network }}
+      "Network": "{{ $network }}",
+      {{- else }}
       "Network": "{{ $relnamespace }}",
+      {{- end }}
       "BlockTime": "30s",
       "LogJSON": "1",
       "LogLevel":"5"
@@ -66,3 +72,4 @@ spec:
           - name: config-volume
             configMap:
               name: sprinkler-config
+{{ end }}
