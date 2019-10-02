@@ -7,11 +7,16 @@ metadata:
 data:
 {{- $relnamespace := .Release.Namespace }}
 {{- $network := .Values.Network }}
+{{- $faucetURL := .Values.Miner.FaucetURL }}
   filecoin-sprinkler.json: |
     {
       "WorkingDir": "/var/filecoin",
       "GenesisCarFile":"/opt/filecoin/genesis.car",
-      "FaucetURL": "http://filecoin-genesis-0.filecoin-genesis.{{ .Release.Namespace }}.svc.cluster.local:9797/tap",
+      {{- if $faucetURL }}
+      "FaucetURL": "{{ $faucetURL }}",
+      {{- else }}
+      "FaucetURL": "http://filecoin-genesis-0.filecoin-genesis.{{ $relnamespace }}.svc.cluster.local:9797/tap",
+      {{- end }}
       "MaxPrice": "0.000000001",
       "AutoSealInterval": 120,
       {{- if $network }}
