@@ -225,7 +225,7 @@ func FaucetRequest(ctx context.Context, p *fast.Filecoin, uri string) error {
 	data := url.Values{}
 	data.Set("target", toAddr.String())
 
-	var resp http.Response
+	var msgcid string
 	for {
 		resp, err := http.PostForm(uri, data)
 		if err != nil {
@@ -233,14 +233,16 @@ func FaucetRequest(ctx context.Context, p *fast.Filecoin, uri string) error {
 		}
 		//statusCode := resp.StatusCode
 		if resp.StatusCode == http.StatusOK {
+			msgcid = resp.Header.Get("Message-Cid")
 			break
 		}
-		timeout := 15 * time.Second
+
+		timeout := 300 * time.Second
 		fmt.Println("FaucetRequest failed. Trying again in", timeout)
 		time.Sleep(timeout)
 	}
 
-	msgcid := resp.Header.Get("Message-Cid")
+	fmt.Println("msgcid", msgcid)
 	mcid, err := cid.Decode(msgcid)
 	if err != nil {
 		return fmt.Errorf("Failed to decode %s: %s", msgcid, mcid)

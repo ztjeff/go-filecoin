@@ -129,9 +129,9 @@ const (
 
 // user devnet addrs
 const (
-	alphaStagingFilecoinBootstrap0 string = "/dns4/bootstrappers-0.alpha-staging.kittyhawk.wtf/tcp/30600/ipfs/QmcnXbqvMEwqG4RmWVgRggbLM4aNtu1BZ123qJDRpK6AqA"
-	alphaStagingFilecoinBootstrap1 string = "/dns4/bootstrappers-1.alpha-staging.kittyhawk.wtf/tcp/30601/ipfs/QmXeMDTYcUm5qgASyRYU52QNc8rvjMY5eHgTGVmF6C2rn5"
-	alphaStagingFilecoinBootstrap2 string = "/dns4/bootstrappers-2.alpha-staging.kittyhawk.wtf/tcp/30602/ipfs/QmbKWFbYgV7QRUNMQsQoUDJDVgaV7nm67LmrxkUTTKJDec"
+	alphaStagingFilecoinBootstrap0 string = "/dns4/bootstrappers-0.alpha-staging.kittyhawk.wtf/tcp/30600/ipfs/Qma2HQKrsyw7DiWpEcWsFM38ibPFd9r12nUNqqeiWVtaAD"
+	alphaStagingFilecoinBootstrap1 string = "/dns4/bootstrappers-1.alpha-staging.kittyhawk.wtf/tcp/30601/ipfs/QmTkDEAELeUR2Ayn1vCjof3sPGjw47LJEW4MNtsLeBCtdT"
+	alphaStagingFilecoinBootstrap2 string = "/dns4/bootstrappers-2.alpha-staging.kittyhawk.wtf/tcp/30602/ipfs/QmQfL7ZxHsMDau3hyTrDRJGyK7sJDmQisJDdAFfETJ48fh"
 )
 
 // person devnet addrs

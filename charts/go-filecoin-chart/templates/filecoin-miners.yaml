@@ -68,6 +68,7 @@ spec:
   replicas: {{ .Values.Miner.Replicas }}
   updateStrategy:
     type: RollingUpdate
+  podManagementPolicy: Parallel
   template:
     metadata:
       labels:

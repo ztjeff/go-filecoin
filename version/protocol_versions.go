@@ -17,6 +17,9 @@ const LOCALNET = "localnet"
 const TEST = "go-filecoin-test"
 
 // PERSON is the network name for person network
+const ALPHASTAGING = "alpha-staging"
+
+// PERSON is the network name for person network
 const PERSON = "person"
 
 // Protocol0 is the first protocol version
