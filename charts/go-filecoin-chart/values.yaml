@@ -1,7 +1,7 @@
 # Default values for go-filecoin-devnet.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-
+ACM: "arn:aws:acm:us-east-1:657871693752:certificate/468a4a8a-3778-44ad-821f-d788bb2e898d"
 BlockExplorer:
   Enabled: true
 Bootstrap:
@@ -13,8 +13,8 @@ Bootstrap:
 EKSName: "alpha-eks"
 Genesis:
   Enabled: true
-  WalletAddress: "t1m2lbhq3sgsv6524a5o76vtwitdjosqmounayv3i"
-  MinerAddress: "t2xvao7yi3llzsvrdx7mbw4dtbw6wkav7lyzsbpoq"
+  WalletAddress: ""
+  MinerAddress: ""
 GenesisFileserver:
   Enabled: true
 Image: ""
