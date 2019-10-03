@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	mr "math/rand"
 	//"net/http"
 	//"net/url"
 	"os"
@@ -29,8 +30,10 @@ import (
 
 type SprinklerConfig struct {
 	CommonConfig
-	FaucetURL string
-	MaxPrice  string
+	FaucetURL      string
+	MaxPrice       string
+	DealLimit      int
+	MinerAddresses []string
 }
 
 type SprinklerPro struct {
@@ -83,6 +86,7 @@ func (p *SprinklerPro) Daemon() error { return nil }
 func (p *SprinklerPro) Post() error   { return nil }
 func (p *SprinklerPro) Main() error {
 	ctx := context.Background()
+
 	tmpdir, err := ioutil.TempDir("", "deal-maker")
 	if err != nil {
 		return err
@@ -97,7 +101,6 @@ func (p *SprinklerPro) Main() error {
 	if err != nil {
 		return err
 	}
-
 	if o, err := node.InitDaemon(ctx); err != nil {
 		io.Copy(os.Stdout, o.Stdout())
 		io.Copy(os.Stdout, o.Stderr())
@@ -117,13 +120,17 @@ func (p *SprinklerPro) Main() error {
 	if err := node.WriteConfig(cfg); err != nil {
 		return err
 	}
-
 	if o, err := node.StartDaemon(ctx, true); err != nil {
 		io.Copy(os.Stdout, o.Stdout())
 		io.Copy(os.Stdout, o.Stderr())
 		return err
 	}
 	defer node.StopDaemon(ctx)
+
+	err = WaitForChainSync(ctx, node)
+	if err != nil {
+		return err
+	}
 
 	if err := FaucetRequest(ctx, node, p.config.FaucetURL); err != nil {
 		return err
@@ -153,20 +160,52 @@ func (p *SprinklerPro) Main() error {
 			asks = append(asks, ask)
 		}
 	}
-
+	dealLimit := p.config.DealLimit
+	if len(asks) > 0 && dealLimit > 0 {
+		shuffle(asks)
+		asks = asks[:(dealLimit - 1)]
+	}
 	for _, ask := range asks {
-		var data bytes.Buffer
-		dataReader := io.LimitReader(rand.Reader, int64(256))
-		dataReader = io.TeeReader(dataReader, &data)
-		_, deal, err := series.ImportAndStoreWithDuration(ctx, node, ask, 256, files.NewReaderFile(dataReader))
-		if err != nil {
-			return err
-		}
-
-		_, err = series.WaitForDealState(ctx, node, deal, storagedeal.Complete)
-		if err != nil {
-			return err
+		minerAddresses := p.config.MinerAddresses
+		if len(minerAddresses) > 0 {
+			for _, addr := range minerAddresses {
+				if addr == ask.Miner.String() {
+					if err := proposeDeal(ctx, node, ask); err != nil {
+						return err
+					}
+				}
+			}
+		} else {
+			if err := proposeDeal(ctx, node, ask); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func proposeDeal(ctx context.Context, node *fast.Filecoin, ask porcelain.Ask) error {
+	var data bytes.Buffer
+	dataReader := io.LimitReader(rand.Reader, int64(256))
+	dataReader = io.TeeReader(dataReader, &data)
+	_, deal, err := series.ImportAndStoreWithDuration(ctx, node, ask, 256, files.NewReaderFile(dataReader))
+	if err != nil {
+		return err
+	}
+
+	_, err = series.WaitForDealState(ctx, node, deal, storagedeal.Complete)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func shuffle(slice []porcelain.Ask) {
+	r := mr.New(mr.NewSource(time.Now().Unix()))
+	for len(slice) > 0 {
+		n := len(slice)
+		randIndex := r.Intn(n)
+		slice[n-1], slice[randIndex] = slice[randIndex], slice[n-1]
+		slice = slice[:n-1]
+	}
 }

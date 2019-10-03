@@ -146,6 +146,10 @@ func (p *MinerProfile) Post() error {
 
 	// If the miner address is set then we are restarting
 	if minerAddress == address.Undef {
+		err := WaitForChainSync(ctx, miner)
+		if err != nil {
+			return err
+		}
 		if err := FaucetRequest(ctx, miner, p.config.FaucetURL); err != nil {
 			return err
 		}
@@ -196,6 +200,22 @@ func WaitForAPI(ctx context.Context, p *fast.Filecoin) error {
 	}
 }
 
+func WaitForChainSync(ctx context.Context, node *fast.Filecoin) error {
+	fmt.Println("Waiting for chain to sync")
+	for {
+		chainStatus, err := node.ChainStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if chainStatus.SyncingComplete && chainStatus.SyncingHeight > 0 {
+			fmt.Println("Chain Syncing Complete")
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return nil
+}
+
 func FaucetRequest(ctx context.Context, p *fast.Filecoin, uri string) error {
 	var toAddr address.Address
 	if err := p.ConfigGet(ctx, "wallet.defaultAddress", &toAddr); err != nil {
@@ -205,9 +225,19 @@ func FaucetRequest(ctx context.Context, p *fast.Filecoin, uri string) error {
 	data := url.Values{}
 	data.Set("target", toAddr.String())
 
-	resp, err := http.PostForm(uri, data)
-	if err != nil {
-		return err
+	var resp http.Response
+	for {
+		resp, err := http.PostForm(uri, data)
+		if err != nil {
+			return err
+		}
+		//statusCode := resp.StatusCode
+		if resp.StatusCode == http.StatusOK {
+			break
+		}
+		timeout := 15 * time.Second
+		fmt.Println("FaucetRequest failed. Trying again in", timeout)
+		time.Sleep(timeout)
 	}
 
 	msgcid := resp.Header.Get("Message-Cid")
