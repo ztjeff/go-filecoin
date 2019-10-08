@@ -14,14 +14,12 @@ import (
 	cid "github.com/ipfs/go-cid"
 )
 
-// codeVersion identifies an ExecutableActor by its code and protocol version
-type codeVersion struct {
-	code            cid.Cid
-	protocolVersion uint64
+type VersionedActors struct {
+	executables map[cid.Cid]exec.ExecutableActor
 }
 
 type Actors struct {
-	actors map[codeVersion]exec.ExecutableActor
+	versioned map[uint64]VersionedActors
 }
 
 // GetActorCode returns executable code for an actor by code cid at a specific protocol version
@@ -29,36 +27,56 @@ func (ba Actors) GetActorCode(code cid.Cid, version uint64) (exec.ExecutableActo
 	if !code.Defined() {
 		return nil, fmt.Errorf("undefined code cid")
 	}
-	actor, ok := ba.actors[codeVersion{code: code, protocolVersion: version}]
+	versionedActors, ok := ba.versioned[version]
 	if !ok {
-		return nil, fmt.Errorf("unknown code: %s, version: %d", code.String(), version)
+		return nil, fmt.Errorf("unknown version: %d", version)
+	}
+	actor, ok := versionedActors.executables[code]
+	if !ok {
+		return nil, fmt.Errorf("unknown code: %s", code.String())
 	}
 	return actor, nil
 }
 
+// GetVersionedActors returns all actors applicable at a protocol version
+func (ba Actors) GetVersionedActors(version uint64) (VersionedActors, error) {
+	actors, ok := ba.versioned[version]
+	if !ok {
+		return VersionedActors{}, fmt.Errorf("unknown version: %d", version)
+	}
+	return actors, nil
+}
+
 type BuiltinActorsBuilder struct {
-	actors map[codeVersion]exec.ExecutableActor
+	actors Actors
 }
 
 // NewBuilder creates a builder to generate a builtin.Actor data structure
 func NewBuilder() *BuiltinActorsBuilder {
-	return &BuiltinActorsBuilder{actors: map[codeVersion]exec.ExecutableActor{}}
+	return &BuiltinActorsBuilder{actors: Actors{versioned: map[uint64]VersionedActors{}}}
 }
 
 func (bab *BuiltinActorsBuilder) AddAll(actors Actors) *BuiltinActorsBuilder {
-	for cv, a := range actors.actors {
-		bab.Add(cv.code, cv.protocolVersion, a)
+	for version, va := range actors.versioned {
+		for code, executable := range va.executables {
+			bab.Add(code, version, executable)
+		}
 	}
 	return bab
 }
 
-func (bab *BuiltinActorsBuilder) Add(c cid.Cid, version uint64, actor exec.ExecutableActor) *BuiltinActorsBuilder {
-	bab.actors[codeVersion{code: c, protocolVersion: version}] = actor
+func (bab *BuiltinActorsBuilder) Add(code cid.Cid, version uint64, actor exec.ExecutableActor) *BuiltinActorsBuilder {
+	versionedActors, ok := bab.actors.versioned[version]
+	if !ok {
+		versionedActors = VersionedActors{executables: map[cid.Cid]exec.ExecutableActor{}}
+		bab.actors.versioned[version] = versionedActors
+	}
+	versionedActors.executables[code] = actor
 	return bab
 }
 
 func (bab *BuiltinActorsBuilder) Build() Actors {
-	return Actors{actors: bab.actors}
+	return bab.actors
 }
 
 // DefaultActors is list of all actors that ship with Filecoin.
