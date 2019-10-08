@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/mitchellh/go-homedir"
 
 	"github.com/filecoin-project/go-filecoin/testhelpers/testflags"
 )
@@ -29,21 +26,6 @@ func GetFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// GetGoPath returns the current go path for the user.
-func GetGoPath() (string, error) {
-	gp := os.Getenv("GOPATH")
-	if gp != "" {
-		return gp, nil
-	}
-
-	home, err := homedir.Dir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(home, "go"), nil
-}
-
 // MustGetFilecoinBinary returns the path where the filecoin binary will be if it has been built and panics otherwise.
 func MustGetFilecoinBinary() string {
 	path, err := GetFilecoinBinary()
@@ -58,12 +40,7 @@ func MustGetFilecoinBinary() string {
 func GetFilecoinBinary() (string, error) {
 	bin, provided := testflags.BinaryPath()
 	if !provided {
-		gopath, err := GetGoPath()
-		if err != nil {
-			return "", err
-		}
-
-		bin = filepath.Join(gopath, "/src/github.com/filecoin-project/go-filecoin/go-filecoin")
+		bin = ProjectRoot("go-filecoin")
 	}
 
 	_, err := os.Stat(bin)
