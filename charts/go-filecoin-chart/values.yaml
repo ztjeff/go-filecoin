@@ -25,6 +25,8 @@ Miner:
   Replicas: 3
   StorageSize: 75Gi
   FaucetURL: ""
+MinerWorkflow:
+  Enabled: true
 Network: ""
 ProofParamsDir: "/opt/filecoin-proof-parameters"
 Secrets:

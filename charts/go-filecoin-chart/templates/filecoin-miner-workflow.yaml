@@ -1,4 +1,4 @@
-{{ if .Values.Miner.Enabled }}
+{{ if .Values.MinerWorkflow.Enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
