@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-hamt-ipld"
-	"github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
@@ -20,9 +18,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/metrics/tracing"
-	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 var (
@@ -74,10 +70,10 @@ const AncestorRoundsNeeded = miner.LargestSectorSizeProvingPeriodBlocks + miner.
 // A Processor processes all the messages in a block or tip set.
 type Processor interface {
 	// ProcessBlock processes all messages in a block.
-	ProcessBlock(context.Context, state.Tree, vm.StorageMap, *types.Block, []*types.SignedMessage, []types.TipSet) ([]*ApplicationResult, error)
+	ProcessBlock(context.Context, VMState, *types.Block, []*types.SignedMessage, []types.TipSet) ([]*ApplicationResult, error)
 
 	// ProcessTipSet processes all messages in a tip set.
-	ProcessTipSet(context.Context, state.Tree, vm.StorageMap, types.TipSet, [][]*types.SignedMessage, []types.TipSet) (*ProcessTipSetResponse, error)
+	ProcessTipSet(context.Context, VMState, types.TipSet, [][]*types.SignedMessage, []types.TipSet) (*ProcessTipSetResponse, error)
 }
 
 // TicketValidator validates that an input ticket is valid.
@@ -88,11 +84,6 @@ type TicketValidator interface {
 // ElectionValidator validates that an election fairly produced a winner.
 type ElectionValidator interface {
 	IsElectionWinner(context.Context, PowerTableView, types.Ticket, types.VRFPi, address.Address, address.Address) (bool, error)
-}
-
-// SnapshotGenerator produces snapshots to examine actor state
-type SnapshotGenerator interface {
-	StateTreeSnapshot(st state.Tree, bh *types.BlockHeight) ActorStateSnapshot
 }
 
 // Expected implements expected consensus.
@@ -106,21 +97,13 @@ type Expected struct {
 	// TicketValidator validates ticket generation
 	TicketValidator
 
-	// cstore is used for loading state trees during message running.
-	cstore *hamt.CborIpldStore
-
-	// bstore contains data referenced by actors within the state
-	// during message running.  Additionally bstore is used for
-	// accessing the power table.
-	bstore blockstore.Blockstore
+	// vmState store provides access to all vmState
+	vmStateStore VMStateStore
 
 	// processor is what we use to process messages and pay rewards
 	processor Processor
 
 	genesisCid cid.Cid
-
-	// actorState provides produces snapshots
-	actorState SnapshotGenerator
 
 	blockTime time.Duration
 }
@@ -129,13 +112,11 @@ type Expected struct {
 var _ Protocol = (*Expected)(nil)
 
 // NewExpected is the constructor for the Expected consenus.Protocol module.
-func NewExpected(cs *hamt.CborIpldStore, bs blockstore.Blockstore, processor Processor, v BlockValidator, actorState SnapshotGenerator, gCid cid.Cid, bt time.Duration, ev ElectionValidator, tv TicketValidator) *Expected {
+func NewExpected(vmStateStore VMStateStore, processor Processor, v BlockValidator, gCid cid.Cid, bt time.Duration, ev ElectionValidator, tv TicketValidator) *Expected {
 	return &Expected{
-		cstore:            cs,
+		vmStateStore:      vmStateStore,
 		blockTime:         bt,
-		bstore:            bs,
 		processor:         processor,
-		actorState:        actorState,
 		genesisCid:        gCid,
 		BlockValidator:    v,
 		ElectionValidator: ev,
@@ -150,7 +131,7 @@ func (c *Expected) BlockTime() time.Duration {
 
 // Weight returns the EC weight of this TipSet in uint64 encoded fixed point
 // representation.
-func (c *Expected) Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) (uint64, error) {
+func (c *Expected) Weight(ctx context.Context, ts types.TipSet, vmState VMState) (uint64, error) {
 	ctx = log.Start(ctx, "Expected.Weight")
 	log.LogKV(ctx, "Weight", ts.String())
 	if ts.Len() == 1 && ts.At(0).Cid().Equals(c.genesisCid) {
@@ -167,7 +148,7 @@ func (c *Expected) Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) 
 		return uint64(0), err
 	}
 
-	powerTableView := c.createPowerTableView(pSt)
+	powerTableView := NewPowerTableView(vmState)
 
 	// Each block in the tipset adds ECV + ECPrm * miner_power to parent weight.
 	totalBytes, err := powerTableView.Total(ctx)
@@ -200,16 +181,25 @@ func (c *Expected) Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) 
 // TODO BLOCK CID CONCAT TIE BREAKER IS NOT IN THE SPEC AND SHOULD BE
 // EVALUATED BEFORE GETTING TO PRODUCTION.
 func (c *Expected) IsHeavier(ctx context.Context, a, b types.TipSet, aStateID, bStateID cid.Cid) (bool, error) {
-	var aSt, bSt state.Tree
+	var aSt, bSt VMState
 	var err error
+
+	aHeight, err := a.Height()
+	if err != nil {
+		return false, err
+	}
 	if aStateID.Defined() {
-		aSt, err = c.loadStateTree(ctx, aStateID)
+		aSt, err = c.vmStateStore.State(ctx, aStateID, types.NewBlockHeight(aHeight))
 		if err != nil {
 			return false, err
 		}
 	}
+	bHeight, err := b.Height()
+	if err != nil {
+		return false, err
+	}
 	if bStateID.Defined() {
-		bSt, err = c.loadStateTree(ctx, bStateID)
+		bSt, err = c.vmStateStore.State(ctx, bStateID, types.NewBlockHeight(bHeight))
 		if err != nil {
 			return false, err
 		}
@@ -270,26 +260,11 @@ func (c *Expected) RunStateTransition(ctx context.Context, ts types.TipSet, tsMe
 		}
 	}
 
-	priorState, err := c.loadStateTree(ctx, priorStateID)
-	if err != nil {
+	if err := c.validateMining(ctx, priorStateID, ts, ancestors[0]); err != nil {
 		return cid.Undef, err
 	}
 
-	if err := c.validateMining(ctx, priorState, ts, ancestors[0]); err != nil {
-		return cid.Undef, err
-	}
-
-	vms := vm.NewStorageMap(c.bstore)
-	st, err := c.runMessages(ctx, priorState, vms, ts, tsMessages, tsReceipts, ancestors)
-	if err != nil {
-		return cid.Undef, err
-	}
-	err = vms.Flush()
-	if err != nil {
-		return cid.Undef, err
-	}
-
-	return st.Flush(ctx)
+	return c.runMessages(ctx, priorStateID, ts, tsMessages, tsReceipts, ancestors)
 }
 
 // validateMining checks validity of the ticket, proof, signature and miner
@@ -302,7 +277,16 @@ func (c *Expected) RunStateTransition(ctx context.Context, ts types.TipSet, tsMe
 //      * has a losing election proof
 //    Returns nil if all the above checks pass.
 // See https://github.com/filecoin-project/specs/blob/master/mining.md#chain-validation
-func (c *Expected) validateMining(ctx context.Context, st state.Tree, ts types.TipSet, parentTs types.TipSet) error {
+func (c *Expected) validateMining(ctx context.Context, parentStateRoot cid.Cid, ts types.TipSet, parentTs types.TipSet) error {
+	blockHeight, err := parentTs.Height()
+	if err != nil {
+		return err
+	}
+	vmState, err := c.vmStateStore.State(ctx, parentStateRoot, types.NewBlockHeight(blockHeight))
+	if err != nil {
+		return err
+	}
+
 	prevTicket, err := parentTs.MinTicket()
 	if err != nil {
 		return errors.Wrap(err, "failed to read parent min ticket")
@@ -312,7 +296,7 @@ func (c *Expected) validateMining(ctx context.Context, st state.Tree, ts types.T
 		return errors.Wrap(err, "failed to read parent height")
 	}
 
-	pwrTableView := c.createPowerTableView(st)
+	pwrTableView := NewPowerTableView(vmState)
 
 	for i := 0; i < ts.Len(); i++ {
 		blk := ts.At(i)
@@ -361,59 +345,63 @@ func (c *Expected) validateMining(ctx context.Context, st state.Tree, ts types.T
 // An error is returned if individual blocks contain messages that do not
 // lead to successful state transitions.  An error is also returned if the node
 // faults while running aggregate state computation.
-func (c *Expected) runMessages(ctx context.Context, st state.Tree, vms vm.StorageMap, ts types.TipSet, tsMessages [][]*types.SignedMessage, tsReceipts [][]*types.MessageReceipt, ancestors []types.TipSet) (state.Tree, error) {
-	var cpySt state.Tree
+func (c *Expected) runMessages(ctx context.Context, parentStateRoot cid.Cid, ts types.TipSet, tsMessages [][]*types.SignedMessage, tsReceipts [][]*types.MessageReceipt, ancestors []types.TipSet) (cid.Cid, error) {
+	blockHeight, err := ts.Height()
+	if err != nil {
+		return cid.Undef, err
+	}
 
 	// TODO: don't process messages twice
+	var outCid cid.Cid
 	for i := 0; i < ts.Len(); i++ {
 		blk := ts.At(i)
-		cpyCid, err := st.Flush(ctx)
+		vmState, err := c.vmStateStore.State(ctx, parentStateRoot, types.NewBlockHeight(blockHeight))
 		if err != nil {
-			return nil, errors.Wrap(err, "error validating block state")
+			return cid.Undef, err
 		}
-		// state copied so changes don't propagate between block validations
-		cpySt, err = c.loadStateTree(ctx, cpyCid)
+		receipts, err := c.processor.ProcessBlock(ctx, vmState, blk, tsMessages[i], ancestors)
 		if err != nil {
-			return nil, errors.Wrap(err, "error validating block state")
-		}
-
-		receipts, err := c.processor.ProcessBlock(ctx, cpySt, vms, blk, tsMessages[i], ancestors)
-		if err != nil {
-			return nil, errors.Wrap(err, "error validating block state")
+			return cid.Undef, errors.Wrap(err, "error validating block state")
 		}
 		// TODO: check that receipts actually match
 		if len(receipts) != len(tsReceipts[i]) {
-			return nil, errors.Errorf("found invalid message receipts: %v %v", receipts, blk.MessageReceipts)
+			return cid.Undef, errors.Errorf("found invalid message receipts: %v %v", receipts, blk.MessageReceipts)
 		}
 
-		outCid, err := cpySt.Flush(ctx)
+		err = vmState.Storage().Flush()
 		if err != nil {
-			return nil, errors.Wrap(err, "error validating block state")
+			return cid.Undef, err
+		}
+
+		outCid, err = vmState.FlushTree(ctx)
+		if err != nil {
+			return cid.Undef, errors.Wrap(err, "error validating block state")
 		}
 
 		if !outCid.Equals(blk.StateRoot) {
-			return nil, ErrStateRootMismatch
+			return cid.Undef, ErrStateRootMismatch
 		}
 	}
 	if ts.Len() <= 1 { // block validation state == aggregate parent state
-		return cpySt, nil
+		return outCid, nil
 	}
 	// multiblock tipsets require reapplying messages to get aggregate state
 	// NOTE: It is possible to optimize further by applying block validation
 	// in sorted order to reuse first block transitions as the starting state
 	// for the tipSetProcessor.
-	_, err := c.processor.ProcessTipSet(ctx, st, vms, ts, tsMessages, ancestors)
+	vmState, err := c.vmStateStore.State(ctx, parentStateRoot, types.NewBlockHeight(blockHeight))
 	if err != nil {
-		return nil, errors.Wrap(err, "error validating tipset")
+		return cid.Undef, err
 	}
-	return st, nil
-}
+	_, err = c.processor.ProcessTipSet(ctx, vmState, ts, tsMessages, ancestors)
+	if err != nil {
+		return cid.Undef, errors.Wrap(err, "error validating tipset")
+	}
 
-func (c *Expected) createPowerTableView(st state.Tree) PowerTableView {
-	snapshot := c.actorState.StateTreeSnapshot(st, nil)
-	return NewPowerTableView(snapshot)
-}
+	err = vmState.Storage().Flush()
+	if err != nil {
+		return cid.Undef, err
+	}
 
-func (c *Expected) loadStateTree(ctx context.Context, id cid.Cid) (state.Tree, error) {
-	return state.LoadStateTree(ctx, c.cstore, id)
+	return vmState.FlushTree(ctx)
 }

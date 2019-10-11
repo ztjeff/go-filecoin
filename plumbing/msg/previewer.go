@@ -3,44 +3,40 @@ package msg
 import (
 	"context"
 
-	"github.com/ipfs/go-hamt-ipld"
-	bstore "github.com/ipfs/go-ipfs-blockstore"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-filecoin/abi"
 	"github.com/filecoin-project/go-filecoin/address"
-	"github.com/filecoin-project/go-filecoin/state"
+	"github.com/filecoin-project/go-filecoin/consensus"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 // Abstracts over a store of blockchain state.
 type previewerChainReader interface {
 	GetHead() types.TipSetKey
-	GetTipSetState(context.Context, types.TipSetKey) (state.Tree, error)
+	GetTipSetStateRoot(types.TipSetKey) (cid.Cid, error)
 	GetTipSet(types.TipSetKey) (types.TipSet, error)
 }
 
 type messagePreviewer interface {
 	// PreviewQueryMethod estimates the amount of gas that will be used by a method
-	PreviewQueryMethod(ctx context.Context, st state.Tree, vms vm.StorageMap, to address.Address, method string, params []byte, from address.Address, optBh *types.BlockHeight) (types.GasUnits, error)
+	PreviewQueryMethod(ctx context.Context, vmState consensus.VMState, to address.Address, method string, params []byte, from address.Address) (types.GasUnits, error)
 }
 
 // Previewer calculates the amount of Gas needed for a command
 type Previewer struct {
 	// To get the head tipset state root.
 	chainReader previewerChainReader
-	// To load the tree for the head tipset state root.
-	cst *hamt.CborIpldStore
-	// For vm storage.
-	bs bstore.Blockstore
+	// To accsss vm state
+	vmStateStore consensus.VMStateStore
 	// To to preview messages
 	processor messagePreviewer
 }
 
 // NewPreviewer constructs a Previewer.
-func NewPreviewer(chainReader previewerChainReader, cst *hamt.CborIpldStore, bs bstore.Blockstore, processor messagePreviewer) *Previewer {
-	return &Previewer{chainReader, cst, bs, processor}
+func NewPreviewer(chainReader previewerChainReader, vmStateStore consensus.VMStateStore, processor messagePreviewer) *Previewer {
+	return &Previewer{chainReader, vmStateStore, processor}
 }
 
 // Preview sends a read-only message to an actor.
@@ -50,21 +46,25 @@ func (p *Previewer) Preview(ctx context.Context, optFrom, to address.Address, me
 		return types.NewGasUnits(0), errors.Wrap(err, "failed to encode message params")
 	}
 
-	st, err := p.chainReader.GetTipSetState(ctx, p.chainReader.GetHead())
-	if err != nil {
-		return types.NewGasUnits(0), errors.Wrap(err, "failed to load tree for latest state root")
-	}
-	head, err := p.chainReader.GetTipSet(p.chainReader.GetHead())
+	headKey := p.chainReader.GetHead()
+	head, err := p.chainReader.GetTipSet(headKey)
 	if err != nil {
 		return types.NewGasUnits(0), errors.Wrap(err, "failed to get head tipset ")
 	}
-	h, err := head.Height()
+	blockHeight, err := head.Height()
 	if err != nil {
 		return types.NewGasUnits(0), errors.Wrap(err, "failed to get head tipset height")
 	}
+	stateRoot, err := p.chainReader.GetTipSetStateRoot(headKey)
+	if err != nil {
+		return types.NewGasUnits(0), errors.Wrap(err, "could not get tipset for head")
+	}
+	vmState, err := p.vmStateStore.State(ctx, stateRoot, types.NewBlockHeight(blockHeight))
+	if err != nil {
+		return types.NewGasUnits(0), errors.Wrap(err, "could not get vm state for head")
+	}
 
-	vms := vm.NewStorageMap(p.bs)
-	usedGas, err := p.processor.PreviewQueryMethod(ctx, st, vms, to, method, encodedParams, optFrom, types.NewBlockHeight(h))
+	usedGas, err := p.processor.PreviewQueryMethod(ctx, vmState, to, method, encodedParams, optFrom)
 	if err != nil {
 		return types.NewGasUnits(0), errors.Wrap(err, "query method returned an error")
 	}

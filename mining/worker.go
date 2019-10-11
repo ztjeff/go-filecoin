@@ -19,7 +19,6 @@ import (
 	"github.com/filecoin-project/go-filecoin/consensus"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 var log = logging.Logger("mining")
@@ -66,13 +65,14 @@ type MessageSource interface {
 // A MessageApplier processes all the messages in a message pool.
 type MessageApplier interface {
 	// ApplyMessagesAndPayRewards applies all state transitions related to a set of messages.
-	ApplyMessagesAndPayRewards(ctx context.Context, st state.Tree, vms vm.StorageMap, messages []*types.SignedMessage, minerOwnerAddr address.Address, bh *types.BlockHeight, ancestors []types.TipSet) (consensus.ApplyMessagesResponse, error)
+	ApplyMessagesAndPayRewards(ctx context.Context, vmState consensus.VMState, messages []*types.SignedMessage, minerOwnerAddr address.Address, ancestors []types.TipSet) (consensus.ApplyMessagesResponse, error)
 }
 
 type workerPorcelainAPI interface {
 	BlockTime() time.Duration
 	MinerGetWorkerAddress(ctx context.Context, minerAddr address.Address, baseKey types.TipSetKey) (address.Address, error)
-	Snapshot(ctx context.Context, baseKey types.TipSetKey) (consensus.ActorStateSnapshot, error)
+	VMState(ctx context.Context, stateRoot cid.Cid, bh *types.BlockHeight) (consensus.VMState, error)
+	VMStateFromKey(ctx context.Context, baseKey types.TipSetKey) (consensus.VMState, error)
 }
 
 type electionUtil interface {
@@ -232,12 +232,15 @@ func (w *DefaultWorker) Mine(ctx context.Context, base types.TipSet, ticketArray
 		outCh <- Output{Err: err}
 		return
 	}
-	powerTable, err := w.getPowerTable(ctx, base.Key())
+	vmState, err := w.api.VMStateFromKey(ctx, base.Key())
 	if err != nil {
-		log.Errorf("Worker.Mine couldn't get snapshot for tipset: %s", err.Error())
+		log.Error("failed to get vm state")
 		outCh <- Output{Err: err}
 		return
 	}
+
+	powerTable := consensus.NewPowerTableView(vmState)
+
 	weHaveAWinner, err := w.election.IsElectionWinner(ctx, powerTable, nextTicket, electionProof, workerAddr, w.minerAddr)
 	if err != nil {
 		log.Errorf("Worker.Mine couldn't run election: %s", err.Error())
@@ -258,12 +261,4 @@ func (w *DefaultWorker) Mine(ctx context.Context, base types.TipSet, ticketArray
 	}
 
 	return
-}
-
-func (w *DefaultWorker) getPowerTable(ctx context.Context, baseKey types.TipSetKey) (consensus.PowerTableView, error) {
-	snapshot, err := w.api.Snapshot(ctx, baseKey)
-	if err != nil {
-		return consensus.PowerTableView{}, err
-	}
-	return consensus.NewPowerTableView(snapshot), nil
 }

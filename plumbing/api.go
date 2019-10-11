@@ -20,7 +20,6 @@ import (
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/chain"
 	"github.com/filecoin-project/go-filecoin/consensus"
-	"github.com/filecoin-project/go-filecoin/exec"
 	"github.com/filecoin-project/go-filecoin/message"
 	"github.com/filecoin-project/go-filecoin/net"
 	"github.com/filecoin-project/go-filecoin/net/pubsub"
@@ -52,20 +51,20 @@ type API struct {
 	expected      consensus.Protocol
 	msgPool       *message.Pool
 	msgPreviewer  *msg.Previewer
-	actorState    *consensus.ActorStateStore
 	msgWaiter     *msg.Waiter
 	network       *net.Network
 	outbox        *message.Outbox
 	sectorBuilder func() sectorbuilder.SectorBuilder
 	storagedeals  *strgdls.Store
+	tipIndex      *chain.TipIndex
 	wallet        *wallet.Wallet
+	vmStateStore  consensus.VMStateStore
 }
 
 // APIDeps contains all the API's dependencies
 type APIDeps struct {
 	Bitswap       exchange.Interface
 	Chain         *cst.ChainStateReadWriter
-	ActState      *consensus.ActorStateStore
 	Sync          *cst.ChainSyncProvider
 	Config        *cfg.Config
 	DAG           *dag.DAG
@@ -77,7 +76,9 @@ type APIDeps struct {
 	Network       *net.Network
 	Outbox        *message.Outbox
 	SectorBuilder func() sectorbuilder.SectorBuilder
+	TipIndex      *chain.TipIndex
 	Wallet        *wallet.Wallet
+	VMStateStore  consensus.VMStateStore
 }
 
 // New constructs a new instance of the API.
@@ -87,7 +88,6 @@ func New(deps *APIDeps) *API {
 
 		bitswap:       deps.Bitswap,
 		chain:         deps.Chain,
-		actorState:    deps.ActState,
 		syncer:        deps.Sync,
 		config:        deps.Config,
 		dag:           deps.DAG,
@@ -99,20 +99,15 @@ func New(deps *APIDeps) *API {
 		outbox:        deps.Outbox,
 		sectorBuilder: deps.SectorBuilder,
 		storagedeals:  deps.Deals,
+		tipIndex:      deps.TipIndex,
 		wallet:        deps.Wallet,
+		vmStateStore:  deps.VMStateStore,
 	}
 }
 
 // ActorGet returns an actor from the latest state on the chain
 func (api *API) ActorGet(ctx context.Context, addr address.Address) (*actor.Actor, error) {
 	return api.chain.GetActor(ctx, addr)
-}
-
-// ActorGetSignature returns the signature of the given actor's given method.
-// The function signature is typically used to enable a caller to decode the
-// output of an actor method call (message).
-func (api *API) ActorGetSignature(ctx context.Context, actorAddr address.Address, method string) (_ *exec.FunctionSignature, err error) {
-	return api.chain.GetActorSignature(ctx, actorAddr, method)
 }
 
 // ActorLs returns a channel with actors from the latest state on the chain
@@ -183,6 +178,12 @@ func (api *API) ChainSampleRandomness(ctx context.Context, sampleHeight *types.B
 	return api.chain.SampleRandomness(ctx, sampleHeight)
 }
 
+// ChainStateRoot produces the a state root of a tipset. The state root will only be available if
+// a state transition has been run with the given tipset.
+func (api *API) ChainStateRoot(baseKey types.TipSetKey) (cid.Cid, error) {
+	return api.tipIndex.GetTipSetStateRoot(baseKey)
+}
+
 // ChainStatus returns the current status of the active or last active chain sync operation.
 func (api *API) ChainStatus() chain.Status {
 	return api.syncer.Status()
@@ -238,22 +239,6 @@ func (api *API) MessagePoolRemove(cid cid.Cid) {
 // recording the amount of Gas used.
 func (api *API) MessagePreview(ctx context.Context, from, to address.Address, method string, params ...interface{}) (types.GasUnits, error) {
 	return api.msgPreviewer.Preview(ctx, from, to, method, params...)
-}
-
-// MessageQuery calls an actor's method using the most recent chain state. It is read-only,
-// it does not change any state. It is use to interrogate actor state. The from address
-// is optional; if not provided, an address will be chosen from the node's wallet.
-func (api *API) MessageQuery(ctx context.Context, optFrom, to address.Address, method string, baseKey types.TipSetKey, params ...interface{}) ([][]byte, error) {
-	snapshot, err := api.actorState.Snapshot(ctx, baseKey)
-	if err != nil {
-		return [][]byte{}, err
-	}
-	return snapshot.Query(ctx, optFrom, to, method, params...)
-}
-
-// Snapshot returns a interface to the chain state a a particular tipset
-func (api *API) Snapshot(ctx context.Context, baseKey types.TipSetKey) (consensus.ActorStateSnapshot, error) {
-	return api.actorState.Snapshot(ctx, baseKey)
 }
 
 // MessageSend sends a message. It uses the default from address if none is given and signs the
@@ -399,4 +384,9 @@ func (api *API) BitswapGetStats(ctx context.Context) (*bitswap.Stat, error) {
 // SectorBuilder returns the sector builder
 func (api *API) SectorBuilder() sectorbuilder.SectorBuilder {
 	return api.sectorBuilder()
+}
+
+// VMState provides access to vm state for a given state root and block height
+func (api *API) VMState(ctx context.Context, stateRoot cid.Cid, bh *types.BlockHeight) (consensus.VMState, error) {
+	return api.vmStateStore.State(ctx, stateRoot, bh)
 }

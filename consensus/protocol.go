@@ -15,7 +15,6 @@ import (
 
 	"github.com/ipfs/go-cid"
 
-	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
@@ -26,7 +25,7 @@ import (
 // finalized.
 type Protocol interface {
 	// Weight returns the weight given to the input ts by this consensus protocol.
-	Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) (uint64, error)
+	Weight(ctx context.Context, ts types.TipSet, vmState VMState) (uint64, error)
 
 	// IsHeaver returns 1 if tipset a is heavier than tipset b and -1 if
 	// tipset b is heavier than tipset a.

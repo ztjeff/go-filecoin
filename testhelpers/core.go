@@ -119,8 +119,8 @@ func VMStorage() vm.StorageMap {
 // CreateTestMiner creates a new test miner with the given peerID and miner
 // owner address within the state tree defined by st and vms with 100 FIL as
 // collateral.
-func CreateTestMiner(t *testing.T, st state.Tree, vms vm.StorageMap, minerOwnerAddr address.Address, pid peer.ID) address.Address {
-	return CreateTestMinerWith(types.NewAttoFILFromFIL(100), t, st, vms, minerOwnerAddr, pid, 0)
+func CreateTestMiner(t *testing.T, vmState consensus.VMState, minerOwnerAddr address.Address, pid peer.ID) address.Address {
+	return CreateTestMinerWith(types.NewAttoFILFromFIL(100), t, vmState, minerOwnerAddr, pid)
 }
 
 // CreateTestMinerWith creates a new test miner with the given peerID miner
@@ -128,17 +128,15 @@ func CreateTestMiner(t *testing.T, st state.Tree, vms vm.StorageMap, minerOwnerA
 func CreateTestMinerWith(
 	collateral types.AttoFIL,
 	t *testing.T,
-	stateTree state.Tree,
-	vms vm.StorageMap,
+	vmState consensus.VMState,
 	minerOwnerAddr address.Address,
 	pid peer.ID,
-	height uint64,
 ) address.Address {
 	pdata := actor.MustConvertParams(types.OneKiBSectorSize, pid)
-	nonce := RequireGetNonce(t, stateTree, address.TestAddress)
+	nonce := RequireGetNonce(t, vmState.Tree(), address.TestAddress)
 	msg := types.NewMessage(minerOwnerAddr, address.StorageMarketAddress, nonce, collateral, "createStorageMiner", pdata)
 
-	result, err := ApplyTestMessage(stateTree, vms, msg, types.NewBlockHeight(height))
+	result, err := ApplyTestMessage(vmState, msg)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NoError(t, result.ExecutionError)
@@ -148,8 +146,8 @@ func CreateTestMinerWith(
 }
 
 // GetTotalPower get total miner power from storage market
-func GetTotalPower(t *testing.T, st state.Tree, vms vm.StorageMap) *types.BytesAmount {
-	res, err := CreateAndApplyTestMessage(t, st, vms, address.StorageMarketAddress, 0, 0, "getTotalStorage", nil)
+func GetTotalPower(t *testing.T, vmState consensus.VMState) *types.BytesAmount {
+	res, err := CreateAndApplyTestMessage(t, vmState, address.StorageMarketAddress, 0, "getTotalStorage", nil)
 	require.NoError(t, err)
 	require.NoError(t, res.ExecutionError)
 	require.Equal(t, uint8(0), res.Receipt.ExitCode)

@@ -15,11 +15,11 @@ import (
 // the power table encoded in the tipset's state tree
 // PowerTableView is the power table view used for running expected consensus in
 type PowerTableView struct {
-	snapshot ActorStateSnapshot
+	snapshot VMState
 }
 
 // NewPowerTableView constructs a new view with a snapshot pinned to a particular tip set.
-func NewPowerTableView(q ActorStateSnapshot) PowerTableView {
+func NewPowerTableView(q VMState) PowerTableView {
 	return PowerTableView{
 		snapshot: q,
 	}

@@ -80,7 +80,7 @@ type Miner struct {
 
 // minerPorcelain is the subset of the porcelain API that storage.Miner needs.
 type minerPorcelain interface {
-	ActorGetSignature(context.Context, address.Address, string) (*exec.FunctionSignature, error)
+	ActorGetSignature(context.Context, types.TipSetKey, address.Address, string) (*exec.FunctionSignature, error)
 
 	ChainHeadKey() types.TipSetKey
 	ChainTipSet(types.TipSetKey) (types.TipSet, error)
@@ -644,17 +644,18 @@ func (sm *Miner) onCommitFail(ctx context.Context, dealCid cid.Cid, message stri
 // isBootstrapMinerActor is a convenience method used to determine if the miner
 // actor was created when bootstrapping the network.
 func (sm *Miner) isBootstrapMinerActor(ctx context.Context) (bool, error) {
+	baseKey := sm.porcelainAPI.ChainHeadKey()
 	returnValues, err := sm.porcelainAPI.MessageQuery(
 		ctx,
 		address.Address{},
 		sm.minerAddr,
 		"isBootstrapMiner",
-		sm.porcelainAPI.ChainHeadKey(),
+		baseKey,
 	)
 	if err != nil {
 		return false, errors.Wrap(err, "query method failed")
 	}
-	sig, err := sm.porcelainAPI.ActorGetSignature(ctx, sm.minerAddr, "isBootstrapMiner")
+	sig, err := sm.porcelainAPI.ActorGetSignature(ctx, baseKey, sm.minerAddr, "isBootstrapMiner")
 	if err != nil {
 		return false, errors.Wrap(err, "query method failed")
 	}
@@ -675,17 +676,18 @@ func (sm *Miner) isBootstrapMinerActor(ctx context.Context) (bool, error) {
 // getActorSectorCommitments is a convenience method used to obtain miner actor
 // commitments.
 func (sm *Miner) getActorSectorCommitments(ctx context.Context) (map[string]types.Commitments, error) {
+	baseKey := sm.porcelainAPI.ChainHeadKey()
 	returnValues, err := sm.porcelainAPI.MessageQuery(
 		ctx,
 		address.Undef,
 		sm.minerAddr,
 		"getProvingSetCommitments",
-		sm.porcelainAPI.ChainHeadKey(),
+		baseKey,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "query method failed")
 	}
-	sig, err := sm.porcelainAPI.ActorGetSignature(ctx, sm.minerAddr, "getProvingSetCommitments")
+	sig, err := sm.porcelainAPI.ActorGetSignature(ctx, baseKey, sm.minerAddr, "getProvingSetCommitments")
 	if err != nil {
 		return nil, errors.Wrap(err, "query method failed")
 	}

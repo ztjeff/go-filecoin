@@ -243,12 +243,6 @@ func (b *Builder) build(ctx context.Context) (*Node, error) {
 		return nil, errors.Wrap(err, "failed to build node.FaultSlasher")
 	}
 
-	// TODO: inject protocol upgrade table into code that requires it (#3360)
-	_, err = version.ConfigureProtocolVersions(nd.Network.NetworkName)
-	if err != nil {
-		return nil, err
-	}
-
 	nd.PorcelainAPI = porcelain.New(plumbing.New(&plumbing.APIDeps{
 		Bitswap:       nd.Network.bitswap,
 		Chain:         nd.Chain.State,
@@ -258,9 +252,9 @@ func (b *Builder) build(ctx context.Context) (*Node, error) {
 		Deals:         strgdls.New(b.Repo.DealsDatastore()),
 		Expected:      nd.Chain.Consensus,
 		MsgPool:       nd.Messaging.msgPool,
-		MsgPreviewer:  msg.NewPreviewer(nd.Chain.ChainReader, nd.Blockstore.cborStore, nd.Blockstore.Blockstore, nd.Chain.processor),
-		ActState:      nd.Chain.ActorState,
-		MsgWaiter:     msg.NewWaiter(nd.Chain.ChainReader, nd.Chain.MessageStore, nd.Blockstore.Blockstore, nd.Blockstore.cborStore),
+		MsgPreviewer:  msg.NewPreviewer(nd.Chain.ChainReader, nd.Chain.VMStateStore, nd.Chain.processor),
+		VMStateStore:  nd.Chain.VMStateStore,
+		MsgWaiter:     msg.NewWaiter(nd.Chain.ChainReader, nd.Chain.MessageStore, nd.Chain.VMStateStore),
 		Network:       nd.Network.Network,
 		Outbox:        nd.Messaging.Outbox,
 		SectorBuilder: nd.SectorBuilder,
@@ -409,7 +403,7 @@ func (b *Builder) buildChain(ctx context.Context, blockstore *BlockstoreSubmodul
 	if b.Rewarder == nil {
 		processor = consensus.NewDefaultProcessor()
 	} else {
-		processor = consensus.NewConfiguredProcessor(consensus.NewDefaultMessageValidator(), b.Rewarder, builtin.DefaultActors)
+		processor = consensus.NewConfiguredProcessor(consensus.NewDefaultMessageValidator(), b.Rewarder)
 	}
 
 	// setup block validation
@@ -423,8 +417,12 @@ func (b *Builder) buildChain(ctx context.Context, blockstore *BlockstoreSubmodul
 	}
 
 	// set up consensus
-	actorState := consensus.NewActorStateStore(chainStore, blockstore.cborStore, blockstore.Blockstore, processor)
-	nodeConsensus := consensus.NewExpected(blockstore.cborStore, blockstore.Blockstore, processor, blkValid, actorState, b.genCid, b.BlockTime, consensus.ElectionMachine{}, consensus.TicketMachine{})
+	pvt, err := version.ConfigureProtocolVersions(network.NetworkName)
+	if err != nil {
+		return ChainSubmodule{}, errors.Wrap(err, "failed to create protocol version table")
+	}
+	vmStateStore := consensus.NewVMStateStore(blockstore.cborStore, blockstore.Blockstore, builtin.DefaultActors, pvt)
+	nodeConsensus := consensus.NewExpected(vmStateStore, processor, blkValid, b.genCid, b.BlockTime, consensus.ElectionMachine{}, consensus.TicketMachine{})
 
 	// setup fecher
 	graphsyncNetwork := gsnet.NewFromLibp2pHost(network.host)
@@ -439,7 +437,7 @@ func (b *Builder) buildChain(ctx context.Context, blockstore *BlockstoreSubmodul
 	// only the syncer gets the storage which is online connected
 	chainSyncer := chain.NewSyncer(nodeConsensus, chainStore, messageStore, fetcher, chainStatusReporter, b.Clock)
 
-	chainState := cst.NewChainStateReadWriter(chainStore, messageStore, blockstore.cborStore, builtin.DefaultActors)
+	chainState := cst.NewChainStateReadWriter(chainStore, messageStore, blockstore.cborStore)
 
 	return ChainSubmodule{
 		// BlockSub: nil,
@@ -447,7 +445,7 @@ func (b *Builder) buildChain(ctx context.Context, blockstore *BlockstoreSubmodul
 		ChainReader:  chainStore,
 		MessageStore: messageStore,
 		Syncer:       chainSyncer,
-		ActorState:   actorState,
+		VMStateStore: vmStateStore,
 		// HeaviestTipSetCh: nil,
 		// cancelChainSync: nil,
 		ChainSynced: moresync.NewLatch(1),

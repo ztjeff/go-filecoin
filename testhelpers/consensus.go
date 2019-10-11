@@ -4,16 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	cid "github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/consensus"
-	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 // RequireNewTipSet instantiates and returns a new tipset of the given blocks
@@ -76,13 +73,13 @@ type FakeBlockRewarder struct{}
 var _ consensus.BlockRewarder = (*FakeBlockRewarder)(nil)
 
 // BlockReward is a noop
-func (tbr *FakeBlockRewarder) BlockReward(ctx context.Context, st state.Tree, minerAddr address.Address) error {
+func (tbr *FakeBlockRewarder) BlockReward(ctx context.Context, vmState consensus.VMState, minerAddr address.Address) error {
 	// do nothing to keep state root the same
 	return nil
 }
 
 // GasReward does nothing
-func (tbr *FakeBlockRewarder) GasReward(ctx context.Context, st state.Tree, minerAddr address.Address, msg *types.SignedMessage, cost types.AttoFIL) error {
+func (tbr *FakeBlockRewarder) GasReward(ctx context.Context, vmState consensus.VMState, minerAddr address.Address, msg *types.SignedMessage, cost types.AttoFIL) error {
 	// do nothing to keep state root the same
 	return nil
 }
@@ -154,7 +151,7 @@ func (mbv *StubBlockValidator) StubSemanticValidationForBlock(child *types.Block
 
 // NewFakeProcessor creates a processor with a test validator and test rewarder
 func NewFakeProcessor() *consensus.DefaultProcessor {
-	return consensus.NewConfiguredProcessor(&FakeSignedMessageValidator{}, &FakeBlockRewarder{}, builtin.DefaultActors)
+	return consensus.NewConfiguredProcessor(&FakeSignedMessageValidator{}, &FakeBlockRewarder{})
 }
 
 type testSigner struct{}
@@ -165,30 +162,30 @@ func (ms testSigner) SignBytes(data []byte, addr address.Address) (types.Signatu
 
 // ApplyTestMessage sends a message directly to the vm, bypassing message
 // validation
-func ApplyTestMessage(st state.Tree, store vm.StorageMap, msg *types.Message, bh *types.BlockHeight) (*consensus.ApplicationResult, error) {
-	return applyTestMessageWithAncestors(builtin.DefaultActors, st, store, msg, bh, nil)
+func ApplyTestMessage(vmState consensus.VMState, msg *types.Message) (*consensus.ApplicationResult, error) {
+	return applyTestMessageWithAncestors(vmState, msg, nil)
 }
 
 // ApplyTestMessageWithActors sends a message directly to the vm with a given set of builtin actors
-func ApplyTestMessageWithActors(actors builtin.Actors, st state.Tree, store vm.StorageMap, msg *types.Message, bh *types.BlockHeight) (*consensus.ApplicationResult, error) {
-	return applyTestMessageWithAncestors(actors, st, store, msg, bh, nil)
+func ApplyTestMessageWithActors(vmState consensus.VMState, msg *types.Message) (*consensus.ApplicationResult, error) {
+	return applyTestMessageWithAncestors(vmState, msg, nil)
 }
 
 // ApplyTestMessageWithGas uses the FakeBlockRewarder but the default SignedMessageValidator
-func ApplyTestMessageWithGas(actors builtin.Actors, st state.Tree, store vm.StorageMap, msg *types.Message, bh *types.BlockHeight, signer *types.MockSigner,
+func ApplyTestMessageWithGas(vmState consensus.VMState, msg *types.Message, signer *types.MockSigner,
 	gasPrice types.AttoFIL, gasLimit types.GasUnits, minerOwner address.Address) (*consensus.ApplicationResult, error) {
 
 	smsg, err := types.NewSignedMessage(*msg, signer, gasPrice, gasLimit)
 	if err != nil {
 		panic(err)
 	}
-	applier := consensus.NewConfiguredProcessor(consensus.NewDefaultMessageValidator(), consensus.NewDefaultBlockRewarder(), actors)
-	return newMessageApplier(smsg, applier, st, store, bh, minerOwner, nil)
+	applier := consensus.NewConfiguredProcessor(consensus.NewDefaultMessageValidator(), consensus.NewDefaultBlockRewarder())
+	return newMessageApplier(smsg, applier, vmState, minerOwner, nil)
 }
 
-func newMessageApplier(smsg *types.SignedMessage, processor *consensus.DefaultProcessor, st state.Tree, storageMap vm.StorageMap,
-	bh *types.BlockHeight, minerOwner address.Address, ancestors []types.TipSet) (*consensus.ApplicationResult, error) {
-	amr, err := processor.ApplyMessagesAndPayRewards(context.Background(), st, storageMap, []*types.SignedMessage{smsg}, minerOwner, bh, ancestors)
+func newMessageApplier(smsg *types.SignedMessage, processor *consensus.DefaultProcessor, vmState consensus.VMState,
+	minerOwner address.Address, ancestors []types.TipSet) (*consensus.ApplicationResult, error) {
+	amr, err := processor.ApplyMessagesAndPayRewards(context.Background(), vmState, []*types.SignedMessage{smsg}, minerOwner, ancestors)
 
 	if len(amr.Results) > 0 {
 		return amr.Results[0], err
@@ -198,30 +195,30 @@ func newMessageApplier(smsg *types.SignedMessage, processor *consensus.DefaultPr
 }
 
 // CreateAndApplyTestMessageFrom wraps the given parameters in a message and calls ApplyTestMessage.
-func CreateAndApplyTestMessageFrom(t *testing.T, st state.Tree, vms vm.StorageMap, from address.Address, to address.Address, val, bh uint64, method string, ancestors []types.TipSet, params ...interface{}) (*consensus.ApplicationResult, error) {
+func CreateAndApplyTestMessageFrom(t *testing.T, vmState consensus.VMState, from address.Address, to address.Address, val uint64, method string, ancestors []types.TipSet, params ...interface{}) (*consensus.ApplicationResult, error) {
 	t.Helper()
 
 	pdata := actor.MustConvertParams(params...)
 	msg := types.NewMessage(from, to, 0, types.NewAttoFILFromFIL(val), method, pdata)
-	return applyTestMessageWithAncestors(builtin.DefaultActors, st, vms, msg, types.NewBlockHeight(bh), ancestors)
+	return applyTestMessageWithAncestors(vmState, msg, ancestors)
 }
 
 // CreateAndApplyTestMessage wraps the given parameters in a message and calls
 // CreateAndApplyTestMessageFrom sending the message from address.TestAddress
-func CreateAndApplyTestMessage(t *testing.T, st state.Tree, vms vm.StorageMap, to address.Address, val, bh uint64, method string, ancestors []types.TipSet, params ...interface{}) (*consensus.ApplicationResult, error) {
-	return CreateAndApplyTestMessageFrom(t, st, vms, address.TestAddress, to, val, bh, method, ancestors, params...)
+func CreateAndApplyTestMessage(t *testing.T, vmState consensus.VMState, to address.Address, val uint64, method string, ancestors []types.TipSet, params ...interface{}) (*consensus.ApplicationResult, error) {
+	return CreateAndApplyTestMessageFrom(t, vmState, address.TestAddress, to, val, method, ancestors, params...)
 }
 
-func applyTestMessageWithAncestors(actors builtin.Actors, st state.Tree, store vm.StorageMap, msg *types.Message, bh *types.BlockHeight, ancestors []types.TipSet) (*consensus.ApplicationResult, error) {
+func applyTestMessageWithAncestors(vmState consensus.VMState, msg *types.Message, ancestors []types.TipSet) (*consensus.ApplicationResult, error) {
 	smsg, err := types.NewSignedMessage(*msg, testSigner{}, types.NewGasPrice(1), types.NewGasUnits(300))
 	if err != nil {
 		panic(err)
 	}
 
-	ta := newTestApplier(actors)
-	return newMessageApplier(smsg, ta, st, store, bh, address.Undef, ancestors)
+	ta := newTestApplier()
+	return newMessageApplier(smsg, ta, vmState, address.Undef, ancestors)
 }
 
-func newTestApplier(actors builtin.Actors) *consensus.DefaultProcessor {
-	return consensus.NewConfiguredProcessor(&FakeSignedMessageValidator{}, &FakeBlockRewarder{}, actors)
+func newTestApplier() *consensus.DefaultProcessor {
+	return consensus.NewConfiguredProcessor(&FakeSignedMessageValidator{}, &FakeBlockRewarder{})
 }

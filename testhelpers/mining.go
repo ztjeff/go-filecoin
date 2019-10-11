@@ -51,12 +51,9 @@ func (t *FakeWorkerPorcelainAPI) MinerGetWorkerAddress(_ context.Context, _ addr
 }
 
 // Snapshot returns a snapshot object for the given tipset
-func (t *FakeWorkerPorcelainAPI) Snapshot(ctx context.Context, tsk types.TipSetKey) (consensus.ActorStateSnapshot, error) {
-	return &consensus.FakePowerTableViewSnapshot{
-		MinerPower:    types.NewBytesAmount(1),
-		TotalPower:    types.NewBytesAmount(t.totalPower),
-		MinerToWorker: t.minerToWorker,
-	}, nil
+func (t *FakeWorkerPorcelainAPI) Snapshot(ctx context.Context, tsk types.TipSetKey) (consensus.VMState, error) {
+	// TODO: Needs to provide worker query interface
+	return consensus.VMState{}, nil
 }
 
 // MakeCommitment creates a random commitment.

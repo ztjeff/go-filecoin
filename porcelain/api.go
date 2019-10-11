@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/filecoin-project/go-filecoin/consensus"
+	"github.com/filecoin-project/go-filecoin/exec"
 	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -44,6 +46,13 @@ type API struct {
 // New returns a new porcelain.API.
 func New(plumbing *plumbing.API) *API {
 	return &API{plumbing}
+}
+
+// ActorGetSignature returns the signature of the given actor's given method.
+// The function signature is typically used to enable a caller to decode the
+// output of an actor method call (message).
+func (api *API) ActorGetSignature(ctx context.Context, baseKey types.TipSetKey, actorAddr address.Address, method string) (_ *exec.FunctionSignature, err error) {
+	return GetActorSignature(ctx, api, baseKey, actorAddr, method)
 }
 
 // ChainHead returns the current head tipset
@@ -92,6 +101,13 @@ func (a *API) DealsLs(ctx context.Context) (<-chan *StorageDealLsResult, error) 
 // It's useful for integration testing.
 func (a *API) MessagePoolWait(ctx context.Context, messageCount uint) ([]*types.SignedMessage, error) {
 	return MessagePoolWait(ctx, a, messageCount)
+}
+
+// MessageQuery calls an actor's method using the most recent chain state. It is read-only,
+// it does not change any state. It is use to interrogate actor state. The from address
+// is optional; if not provided, an address will be chosen from the node's wallet.
+func (api *API) MessageQuery(ctx context.Context, optFrom, to address.Address, method string, baseKey types.TipSetKey, params ...interface{}) ([][]byte, error) {
+	return MessageQuery(ctx, baseKey, api, optFrom, to, method, params...)
 }
 
 // MinerCreate creates a miner
@@ -259,4 +275,9 @@ func (a *API) PingMinerWithTimeout(
 // MinerSetWorkerAddress sets the miner worker address to the provided address
 func (a *API) MinerSetWorkerAddress(ctx context.Context, toAddr address.Address, gasPrice types.AttoFIL, gasLimit types.GasUnits) (cid.Cid, error) {
 	return MinerSetWorkerAddress(ctx, a, toAddr, gasPrice, gasLimit)
+}
+
+// VMState provides access to vm state for a given baseKey
+func (api *API) VMStateFromKey(ctx context.Context, baseKey types.TipSetKey) (consensus.VMState, error) {
+	return VMState(ctx, api, baseKey)
 }

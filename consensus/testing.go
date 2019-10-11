@@ -11,7 +11,6 @@ import (
 
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/address"
-	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
@@ -40,13 +39,13 @@ func NewFakeActorStateStore(minerPower, totalPower *types.BytesAmount, minerToWo
 }
 
 // StateTreeSnapshot returns a Snapshot suitable for PowerTableView queries
-func (t *FakeActorStateStore) StateTreeSnapshot(st state.Tree, bh *types.BlockHeight) ActorStateSnapshot {
-	return &FakePowerTableViewSnapshot{
-		MinerPower:    t.minerPower,
-		TotalPower:    t.totalPower,
-		MinerToWorker: t.minerToWorker,
-	}
-}
+//func (t *FakeActorStateStore) StateTreeSnapshot(st state.Tree, bh *types.BlockHeight) VMState {
+//	return &FakePowerTableViewSnapshot{
+//		MinerPower:    t.minerPower,
+//		TotalPower:    t.totalPower,
+//		MinerToWorker: t.minerToWorker,
+//	}
+//}
 
 // FakePowerTableViewSnapshot returns a snapshot that can be fed into a PowerTableView to produce specific values
 type FakePowerTableViewSnapshot struct {
@@ -77,12 +76,12 @@ func (tq *FakePowerTableViewSnapshot) Query(ctx context.Context, optFrom, to add
 
 // NewFakePowerTableView creates a test power view with the given total power
 func NewFakePowerTableView(minerPower *types.BytesAmount, totalPower *types.BytesAmount, minerToWorker map[address.Address]address.Address) PowerTableView {
-	tq := &FakePowerTableViewSnapshot{
-		MinerPower:    minerPower,
-		TotalPower:    totalPower,
-		MinerToWorker: minerToWorker,
-	}
-	return NewPowerTableView(tq)
+	//tq := &FakePowerTableViewSnapshot{
+	//	MinerPower:    minerPower,
+	//	TotalPower:    totalPower,
+	//	MinerToWorker: minerToWorker,
+	//}
+	return NewPowerTableView(VMState{})
 }
 
 // FakeSignedMessageValidator is a validator that doesn't validate to simplify message creation in tests.
@@ -101,13 +100,13 @@ type FakeBlockRewarder struct{}
 var _ BlockRewarder = (*FakeBlockRewarder)(nil)
 
 // BlockReward is a noop
-func (tbr *FakeBlockRewarder) BlockReward(ctx context.Context, st state.Tree, minerAddr address.Address) error {
+func (tbr *FakeBlockRewarder) BlockReward(ctx context.Context, vmState VMState, minerAddr address.Address) error {
 	// do nothing to keep state root the same
 	return nil
 }
 
 // GasReward is a noop
-func (tbr *FakeBlockRewarder) GasReward(ctx context.Context, st state.Tree, minerAddr address.Address, msg *types.SignedMessage, gas types.AttoFIL) error {
+func (tbr *FakeBlockRewarder) GasReward(ctx context.Context, vmState VMState, minerAddr address.Address, msg *types.SignedMessage, gas types.AttoFIL) error {
 	// do nothing to keep state root the same
 	return nil
 }
@@ -117,7 +116,6 @@ func NewFakeProcessor(actors builtin.Actors) *DefaultProcessor {
 	return &DefaultProcessor{
 		signedMessageValidator: &FakeSignedMessageValidator{},
 		blockRewarder:          &FakeBlockRewarder{},
-		actors:                 actors,
 	}
 }
 

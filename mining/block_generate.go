@@ -8,10 +8,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/filecoin-project/go-filecoin/consensus"
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 // Generate returns a new block created from the messages in the pool.
@@ -26,15 +26,12 @@ func (w *DefaultWorker) Generate(ctx context.Context,
 		log.Infof("[TIMER] DefaultWorker.Generate baseTipset: %s - elapsed time: %s", baseTipSet.String(), time.Since(generateTimer).Round(time.Millisecond))
 	}()
 
-	stateTree, err := w.getStateTree(ctx, baseTipSet)
+	parentState, err := w.api.VMStateFromKey(ctx, baseTipSet.Key())
 	if err != nil {
-		return nil, errors.Wrap(err, "get state tree")
+		return nil, errors.Wrap(err, "get vm state")
 	}
 
-	powerTable, err := w.getPowerTable(ctx, baseTipSet.Key())
-	if err != nil {
-		return nil, errors.Wrap(err, "get power table")
-	}
+	powerTable := consensus.NewPowerTableView(parentState)
 
 	if !powerTable.HasPower(ctx, w.minerAddr) {
 		return nil, errors.Errorf("bad miner address, miner must store files before mining: %s", w.minerAddr)
@@ -52,6 +49,11 @@ func (w *DefaultWorker) Generate(ctx context.Context,
 
 	blockHeight := baseHeight + nullBlockCount + 1
 
+	nextVMState, err := w.api.VMState(ctx, parentState.StateRoot(), types.NewBlockHeight(blockHeight))
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get root from state")
+	}
+
 	ancestors, err := w.getAncestors(ctx, baseTipSet, types.NewBlockHeight(blockHeight))
 	if err != nil {
 		return nil, errors.Wrap(err, "get base tip set ancestors")
@@ -61,18 +63,17 @@ func (w *DefaultWorker) Generate(ctx context.Context,
 	mq := NewMessageQueue(pending)
 	messages := mq.Drain()
 
-	vms := vm.NewStorageMap(w.blockstore)
-	res, err := w.processor.ApplyMessagesAndPayRewards(ctx, stateTree, vms, messages, w.minerOwnerAddr, types.NewBlockHeight(blockHeight), ancestors)
+	res, err := w.processor.ApplyMessagesAndPayRewards(ctx, nextVMState, messages, w.minerOwnerAddr, ancestors)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate apply messages")
 	}
 
-	newStateTreeCid, err := stateTree.Flush(ctx)
+	newStateTreeCid, err := nextVMState.FlushTree(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate flush state tree")
 	}
 
-	if err = vms.Flush(); err != nil {
+	if err = nextVMState.Storage().Flush(); err != nil {
 		return nil, errors.Wrap(err, "generate flush vm storage map")
 	}
 

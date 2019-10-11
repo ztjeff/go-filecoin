@@ -2,17 +2,14 @@ package cst
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-filecoin/actor"
-	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/chain"
-	"github.com/filecoin-project/go-filecoin/exec"
 	"github.com/filecoin-project/go-filecoin/sampling"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
@@ -32,26 +29,14 @@ type ChainStateReadWriter struct {
 	readWriter      chainReadWriter
 	cst             *hamt.CborIpldStore // Provides chain blocks and state trees.
 	messageProvider chain.MessageProvider
-	actors          builtin.Actors
 }
 
-var (
-	// ErrNoMethod is returned by Get when there is no method signature (eg, transfer).
-	ErrNoMethod = errors.New("no method")
-	// ErrNoActorImpl is returned by Get when the actor implementation doesn't exist, eg
-	// the actor address is an empty actor, an address that has received a transfer of FIL
-	// but hasn't yet been upgraded to an account actor. (The actor implementation might
-	// also genuinely be missing, which is not expected.)
-	ErrNoActorImpl = errors.New("no actor implementation")
-)
-
 // NewChainStateReadWriter returns a new ChainStateReadWriter.
-func NewChainStateReadWriter(crw chainReadWriter, messages chain.MessageProvider, cst *hamt.CborIpldStore, ba builtin.Actors) *ChainStateReadWriter {
+func NewChainStateReadWriter(crw chainReadWriter, messages chain.MessageProvider, cst *hamt.CborIpldStore) *ChainStateReadWriter {
 	return &ChainStateReadWriter{
 		readWriter:      crw,
 		cst:             cst,
 		messageProvider: messages,
-		actors:          ba,
 	}
 }
 
@@ -132,35 +117,6 @@ func (chn *ChainStateReadWriter) LsActors(ctx context.Context) (<-chan state.Get
 		return nil, err
 	}
 	return state.GetAllActors(ctx, st), nil
-}
-
-// GetActorSignature returns the signature of the given actor's given method.
-// The function signature is typically used to enable a caller to decode the
-// output of an actor method call (message).
-func (chn *ChainStateReadWriter) GetActorSignature(ctx context.Context, actorAddr address.Address, method string) (*exec.FunctionSignature, error) {
-	if method == "" {
-		return nil, ErrNoMethod
-	}
-
-	actor, err := chn.GetActor(ctx, actorAddr)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get actor")
-	} else if actor.Empty() {
-		return nil, ErrNoActorImpl
-	}
-
-	// TODO: use chain height to determine protocol version (#3360)
-	executable, err := chn.actors.GetActorCode(actor.Code, 0)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load actor code")
-	}
-
-	export, ok := executable.Exports()[method]
-	if !ok {
-		return nil, fmt.Errorf("missing export: %s", method)
-	}
-
-	return export, nil
 }
 
 // SetHead sets `key` as the new head of this chain iff it exists in the nodes chain store.

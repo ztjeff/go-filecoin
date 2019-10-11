@@ -6,16 +6,12 @@ import (
 
 	"github.com/cskr/pubsub"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-hamt-ipld"
-	bstore "github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-filecoin/chain"
 	"github.com/filecoin-project/go-filecoin/consensus"
-	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 var log = logging.Logger("messageimpl")
@@ -24,7 +20,7 @@ var log = logging.Logger("messageimpl")
 type waiterChainReader interface {
 	GetHead() types.TipSetKey
 	GetTipSet(types.TipSetKey) (types.TipSet, error)
-	GetTipSetState(context.Context, types.TipSetKey) (state.Tree, error)
+	GetTipSetStateRoot(types.TipSetKey) (cid.Cid, error)
 	HeadEvents() *pubsub.PubSub
 }
 
@@ -32,8 +28,7 @@ type waiterChainReader interface {
 type Waiter struct {
 	chainReader     waiterChainReader
 	messageProvider chain.MessageProvider
-	cst             *hamt.CborIpldStore
-	bs              bstore.Blockstore
+	vss             consensus.VMStateStore
 }
 
 // ChainMessage is an on-chain message with its block and receipt.
@@ -44,12 +39,11 @@ type ChainMessage struct {
 }
 
 // NewWaiter returns a new Waiter.
-func NewWaiter(chainStore waiterChainReader, messages chain.MessageProvider, bs bstore.Blockstore, cst *hamt.CborIpldStore) *Waiter {
+func NewWaiter(chainStore waiterChainReader, messages chain.MessageProvider, vss consensus.VMStateStore) *Waiter {
 	return &Waiter{
 		chainReader:     chainStore,
-		cst:             cst,
-		bs:              bs,
 		messageProvider: messages,
+		vss:             vss,
 	}
 }
 
@@ -210,7 +204,7 @@ func (w *Waiter) receiptFromTipSet(ctx context.Context, msgCid cid.Cid, ts types
 	if err != nil {
 		return nil, err
 	}
-	st, err := w.chainReader.GetTipSetState(ctx, ids)
+	parentStateRoot, err := w.chainReader.GetTipSetStateRoot(ids)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +213,11 @@ func (w *Waiter) receiptFromTipSet(ctx context.Context, msgCid cid.Cid, ts types
 	if err != nil {
 		return nil, err
 	}
+	parentState, err := w.vss.State(ctx, parentStateRoot, types.NewBlockHeight(tsHeight))
+	if err != nil {
+		return nil, err
+	}
+
 	ancestorHeight := types.NewBlockHeight(tsHeight).Sub(types.NewBlockHeight(consensus.AncestorRoundsNeeded))
 	parentTs, err := w.chainReader.GetTipSet(ids)
 	if err != nil {
@@ -239,7 +238,7 @@ func (w *Waiter) receiptFromTipSet(ctx context.Context, msgCid cid.Cid, ts types
 		tsMessages = append(tsMessages, msgs)
 	}
 
-	res, err := consensus.NewDefaultProcessor().ProcessTipSet(ctx, st, vm.NewStorageMap(w.bs), ts, tsMessages, ancestors)
+	res, err := consensus.NewDefaultProcessor().ProcessTipSet(ctx, parentState, ts, tsMessages, ancestors)
 	if err != nil {
 		return nil, err
 	}

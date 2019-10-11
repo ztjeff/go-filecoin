@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/filecoin-project/go-filecoin/actor/builtin"
+	"github.com/filecoin-project/go-filecoin/version"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
@@ -47,13 +49,14 @@ func MkFakeChild(params FakeChildParams) (*types.Block, error) {
 	// Create consensus for reading the valid weight
 	bs := bstore.NewBlockstore(repo.NewInMemoryRepo().Datastore())
 	cst := hamt.NewCborStore()
-	processor := consensus.NewDefaultProcessor()
-	actorState := consensus.NewActorStateStore(nil, cst, bs, processor)
-	con := consensus.NewExpected(cst,
-		bs,
+	pvt, err := version.ConfigureProtocolVersions(version.TEST)
+	if err != nil {
+		return nil, err
+	}
+	vss := consensus.NewVMStateStore(cst, bs, builtin.DefaultActors, pvt)
+	con := consensus.NewExpected(vss,
 		NewFakeProcessor(),
 		NewFakeBlockValidator(),
-		actorState,
 		params.GenesisCid,
 		BlockTimeTest,
 		consensus.ElectionMachine{},
@@ -66,7 +69,7 @@ func MkFakeChild(params FakeChildParams) (*types.Block, error) {
 // MkFakeChildWithCon creates a chain with the given consensus weight function.
 func MkFakeChildWithCon(params FakeChildParams) (*types.Block, error) {
 	wFun := func(ts types.TipSet) (uint64, error) {
-		return params.Consensus.Weight(context.Background(), params.Parent, nil)
+		return params.Consensus.Weight(context.Background(), params.Parent, consensus.VMState{})
 	}
 	return MkFakeChildCore(params.Parent,
 		params.StateRoot,

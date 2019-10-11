@@ -23,15 +23,11 @@ type Actors struct {
 }
 
 // GetActorCode returns executable code for an actor by code cid at a specific protocol version
-func (ba Actors) GetActorCode(code cid.Cid, version uint64) (exec.ExecutableActor, error) {
+func (va VersionedActors) GetActorCode(code cid.Cid) (exec.ExecutableActor, error) {
 	if !code.Defined() {
 		return nil, fmt.Errorf("undefined code cid")
 	}
-	versionedActors, ok := ba.versioned[version]
-	if !ok {
-		return nil, fmt.Errorf("unknown version: %d", version)
-	}
-	actor, ok := versionedActors.executables[code]
+	actor, ok := va.executables[code]
 	if !ok {
 		return nil, fmt.Errorf("unknown code: %s", code.String())
 	}

@@ -269,7 +269,7 @@ func MinerPreviewSetPrice(ctx context.Context, plumbing mpspAPI, from address.Ad
 type minerQueryAndDeserialize interface {
 	ChainHeadKey() types.TipSetKey
 	MessageQuery(ctx context.Context, optFrom, to address.Address, method string, baseKey types.TipSetKey, params ...interface{}) ([][]byte, error)
-	ActorGetSignature(ctx context.Context, actorAddr address.Address, method string) (*exec.FunctionSignature, error)
+	ActorGetSignature(ctx context.Context, baseKey types.TipSetKey, actorAddr address.Address, method string) (*exec.FunctionSignature, error)
 }
 
 // MinerGetOwnerAddress queries for the owner address of the given miner
@@ -301,7 +301,7 @@ func queryAndDeserialize(ctx context.Context, plumbing minerQueryAndDeserialize,
 		return nil, errors.Wrapf(err, "'%s' query message failed", method)
 	}
 
-	methodSignature, err := plumbing.ActorGetSignature(ctx, minerAddr, method)
+	methodSignature, err := plumbing.ActorGetSignature(ctx, baseKey, minerAddr, method)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to acquire '%s' signature", method)
 	}
@@ -411,12 +411,13 @@ type MinerProvingWindow struct {
 
 // MinerGetProvingWindow gets the proving period and commitments for miner `minerAddr`.
 func MinerGetProvingWindow(ctx context.Context, plumbing minerQueryAndDeserialize, minerAddr address.Address) (MinerProvingWindow, error) {
+	baseKey := plumbing.ChainHeadKey()
 	res, err := plumbing.MessageQuery(
 		ctx,
 		address.Undef,
 		minerAddr,
 		"getProvingWindow",
-		plumbing.ChainHeadKey(),
+		baseKey,
 	)
 	if err != nil {
 		return MinerProvingWindow{}, errors.Wrap(err, "query ProvingPeriod method failed")
@@ -434,7 +435,7 @@ func MinerGetProvingWindow(ctx context.Context, plumbing minerQueryAndDeserializ
 		return MinerProvingWindow{}, errors.Wrap(err, "query SetCommitments method failed")
 	}
 
-	sig, err := plumbing.ActorGetSignature(ctx, minerAddr, "getProvingSetCommitments")
+	sig, err := plumbing.ActorGetSignature(ctx, baseKey, minerAddr, "getProvingSetCommitments")
 	if err != nil {
 		return MinerProvingWindow{}, errors.Wrap(err, "query method failed")
 	}

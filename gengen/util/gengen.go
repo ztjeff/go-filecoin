@@ -15,7 +15,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/crypto"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
+	"github.com/filecoin-project/go-filecoin/version"
 
 	bserv "github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-car"
@@ -107,9 +107,19 @@ func GenGen(ctx context.Context, cfg *GenesisCfg, cst *hamt.CborIpldStore, bs bl
 		return nil, err
 	}
 
-	st := state.NewEmptyStateTree(cst)
-	storageMap := vm.NewStorageMap(bs)
+	protocolVersionTable, err := version.ConfigureProtocolVersions(cfg.Network)
+	if err != nil {
+		return nil, err
+	}
 
+	vss := consensus.NewVMStateStore(cst, bs, builtin.DefaultActors, protocolVersionTable)
+	vmState, err := vss.State(ctx, cid.Undef, types.NewBlockHeight(0))
+	if err != nil {
+		return nil, err
+	}
+
+	st := vmState.Tree()
+	storageMap := vmState.Storage()
 	if err := consensus.SetupDefaultActors(ctx, st, storageMap, cfg.ProofsMode, cfg.Network); err != nil {
 		return nil, err
 	}
@@ -118,7 +128,7 @@ func GenGen(ctx context.Context, cfg *GenesisCfg, cst *hamt.CborIpldStore, bs bl
 		return nil, err
 	}
 
-	miners, err := setupMiners(st, storageMap, keys, cfg.Miners, pnrg)
+	miners, err := setupMiners(vmState, keys, cfg.Miners, pnrg)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +249,7 @@ func setupPrealloc(st state.Tree, keys []*types.KeyInfo, prealloc []string) erro
 	return st.SetActor(context.Background(), address.NetworkAddress, netact)
 }
 
-func setupMiners(st state.Tree, sm vm.StorageMap, keys []*types.KeyInfo, miners []*CreateStorageMinerConfig, pnrg io.Reader) ([]RenderedMinerInfo, error) {
+func setupMiners(vmState consensus.VMState, keys []*types.KeyInfo, miners []*CreateStorageMinerConfig, pnrg io.Reader) ([]RenderedMinerInfo, error) {
 	var minfos []RenderedMinerInfo
 	ctx := context.Background()
 
@@ -266,12 +276,12 @@ func setupMiners(st state.Tree, sm vm.StorageMap, keys []*types.KeyInfo, miners 
 		}
 
 		// give collateral to account actor
-		_, err = applyMessageDirect(ctx, st, sm, address.NetworkAddress, addr, types.NewAttoFILFromFIL(100000), "")
+		_, err = applyMessageDirect(ctx, vmState, address.NetworkAddress, addr, types.NewAttoFILFromFIL(100000), "")
 		if err != nil {
 			return nil, err
 		}
 
-		ret, err := applyMessageDirect(ctx, st, sm, addr, address.StorageMarketAddress, types.NewAttoFILFromFIL(100000), "createStorageMiner", types.NewBytesAmount(m.SectorSize), pid)
+		ret, err := applyMessageDirect(ctx, vmState, addr, address.StorageMarketAddress, types.NewAttoFILFromFIL(100000), "createStorageMiner", types.NewBytesAmount(m.SectorSize), pid)
 		if err != nil {
 			return nil, err
 		}
@@ -310,7 +320,7 @@ func setupMiners(st state.Tree, sm vm.StorageMap, keys []*types.KeyInfo, miners 
 			if _, err := pnrg.Read(sealProof[:]); err != nil {
 				return nil, err
 			}
-			_, err := applyMessageDirect(ctx, st, sm, addr, maddr, types.NewAttoFILFromFIL(0), "commitSector", sectorID, commD, commR, commRStar, sealProof)
+			_, err := applyMessageDirect(ctx, vmState, addr, maddr, types.NewAttoFILFromFIL(0), "commitSector", sectorID, commD, commR, commRStar, sealProof)
 			if err != nil {
 				return nil, err
 			}
@@ -323,7 +333,7 @@ func setupMiners(st state.Tree, sm vm.StorageMap, keys []*types.KeyInfo, miners 
 			if _, err := pnrg.Read(poStProof[:]); err != nil {
 				return nil, err
 			}
-			_, err = applyMessageDirect(ctx, st, sm, addr, maddr, types.NewAttoFILFromFIL(0), "submitPoSt", poStProof, types.EmptyFaultSet(), types.EmptyIntSet())
+			_, err = applyMessageDirect(ctx, vmState, addr, maddr, types.NewAttoFILFromFIL(0), "submitPoSt", poStProof, types.EmptyFaultSet(), types.EmptyIntSet())
 			if err != nil {
 				return nil, err
 			}
@@ -356,7 +366,7 @@ func GenGenesisCar(cfg *GenesisCfg, out io.Writer, seed int64) (*RenderedGenInfo
 // applyMessageDirect applies a given message directly to the given state tree and storage map and returns the result of the message.
 // This is a shortcut to allow gengen to use built-in actor functionality to alter the genesis block's state.
 // Outside genesis, direct execution of actor code is a really bad idea.
-func applyMessageDirect(ctx context.Context, st state.Tree, vms vm.StorageMap, from, to address.Address, value types.AttoFIL, method string, params ...interface{}) ([][]byte, error) {
+func applyMessageDirect(ctx context.Context, vmState consensus.VMState, from, to address.Address, value types.AttoFIL, method string, params ...interface{}) ([][]byte, error) {
 	pdata := actor.MustConvertParams(params...)
 	msg := types.NewMessage(from, to, 0, value, method, pdata)
 	// this should never fail due to lack of gas since gas doesn't have meaning here
@@ -367,9 +377,9 @@ func applyMessageDirect(ctx context.Context, st state.Tree, vms vm.StorageMap, f
 	}
 
 	// create new processor that doesn't reward and doesn't validate
-	applier := consensus.NewConfiguredProcessor(&messageValidator{}, &blockRewarder{}, builtin.DefaultActors)
+	applier := consensus.NewConfiguredProcessor(&messageValidator{}, &blockRewarder{})
 
-	res, err := applier.ApplyMessagesAndPayRewards(ctx, st, vms, []*types.SignedMessage{smsg}, address.Undef, types.NewBlockHeight(0), nil)
+	res, err := applier.ApplyMessagesAndPayRewards(ctx, vmState, []*types.SignedMessage{smsg}, address.Undef, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -401,12 +411,12 @@ type blockRewarder struct{}
 var _ consensus.BlockRewarder = (*blockRewarder)(nil)
 
 // BlockReward is a noop
-func (gbr *blockRewarder) BlockReward(ctx context.Context, st state.Tree, minerAddr address.Address) error {
+func (gbr *blockRewarder) BlockReward(ctx context.Context, vmState consensus.VMState, minerAddr address.Address) error {
 	return nil
 }
 
 // GasReward is a noop
-func (gbr *blockRewarder) GasReward(ctx context.Context, st state.Tree, minerAddr address.Address, msg *types.SignedMessage, cost types.AttoFIL) error {
+func (gbr *blockRewarder) GasReward(ctx context.Context, vmState consensus.VMState, minerAddr address.Address, msg *types.SignedMessage, cost types.AttoFIL) error {
 	return nil
 }
 

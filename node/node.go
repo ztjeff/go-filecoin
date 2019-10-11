@@ -795,19 +795,30 @@ func (node *Node) getStateTree(ctx context.Context, ts types.TipSet) (state.Tree
 
 // getWeight is the default GetWeight function for the mining worker.
 func (node *Node) getWeight(ctx context.Context, ts types.TipSet) (uint64, error) {
-	parent, err := ts.Parents()
+	parentKey, err := ts.Parents()
 	if err != nil {
 		return uint64(0), err
 	}
-	// TODO handle genesis cid more gracefully
-	if parent.Len() == 0 {
-		return node.Chain.Consensus.Weight(ctx, ts, nil)
+	if parentKey.Len() == 0 {
+		return 0, nil
 	}
-	pSt, err := node.Chain.ChainReader.GetTipSetState(ctx, parent)
+	stateRoot, err := node.Chain.ChainReader.GetTipSetStateRoot(parentKey)
 	if err != nil {
-		return uint64(0), err
+		return 0, err
 	}
-	return node.Chain.Consensus.Weight(ctx, ts, pSt)
+	parents, err := node.Chain.ChainReader.GetTipSet(parentKey)
+	if err != nil {
+		return 0, err
+	}
+	bh, err := parents.Height()
+	if err != nil {
+		return 0, err
+	}
+	vmState, err := node.Chain.VMStateStore.State(ctx, stateRoot, types.NewBlockHeight(bh))
+	if err != nil {
+		return 0, err
+	}
+	return node.Chain.Consensus.Weight(ctx, ts, vmState)
 }
 
 // getAncestors is the default GetAncestors function for the mining worker.
