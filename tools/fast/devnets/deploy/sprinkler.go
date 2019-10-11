@@ -161,12 +161,12 @@ func (p *SprinklerPro) Main() error {
 		}
 	}
 	dealLimit := p.config.DealLimit
+	shuffle(asks)
 	if len(asks) > 0 && dealLimit > 0 {
-		shuffle(asks)
 		asks = asks[:(dealLimit - 1)]
 	}
+	minerAddresses := p.config.MinerAddresses
 	for _, ask := range asks {
-		minerAddresses := p.config.MinerAddresses
 		if len(minerAddresses) > 0 {
 			for _, addr := range minerAddresses {
 				if addr == ask.Miner.String() {
