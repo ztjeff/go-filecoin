@@ -6,7 +6,6 @@ import (
 	"github.com/ipfs/go-hamt-ipld"
 
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
-	vstorage "github.com/filecoin-project/chain-validation/pkg/storage"
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/state"
@@ -18,7 +17,7 @@ import (
 type StateFactory struct {
 }
 
-var _ vstate.Factory = &StateFactory{}
+var _ vstate.StateFactory = &StateFactory{}
 
 func (StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Actor {
 	return &actorWrapper{actor.Actor{
@@ -174,7 +173,7 @@ func (s *stateTreeWrapper) Cid() cid.Cid {
 	panic("implement me")
 }
 
-func (s *stateTreeWrapper) ActorStorage(vstate.Address) (vstorage.Storage, error) {
+func (s *stateTreeWrapper) ActorStorage(vstate.Address) (vstate.Storage, error) {
 	panic("implement me")
 }
 
