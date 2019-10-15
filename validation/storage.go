@@ -3,7 +3,6 @@ package validation
 import (
 
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
-	vstorage "github.com/filecoin-project/chain-validation/pkg/storage"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 
 	"github.com/filecoin-project/go-filecoin/address"
@@ -13,9 +12,9 @@ import (
 type StorageFactory struct {
 }
 
-var _ vstorage.Factory = &StorageFactory{}
+var _ vstate.StorageFactory = &StorageFactory{}
 
-func (StorageFactory) NewStorageMap(store blockstore.Blockstore) vstorage.StorageMap {
+func (StorageFactory) NewStorageMap(store blockstore.Blockstore) vstate.StorageMap {
 	return StorageMapWrapper{vm.NewStorageMap(store)}
 }
 
@@ -27,7 +26,7 @@ type StorageMapWrapper struct {
 	vm.StorageMap
 }
 
-func (s StorageMapWrapper) NewStorage(addr vstate.Address, actor vstate.Actor) vstorage.Storage {
+func (s StorageMapWrapper) NewStorage(addr vstate.Address, actor vstate.Actor) vstate.Storage {
 	fcActor := actor.(*actorWrapper)
 	fcAddr, err := address.NewFromBytes([]byte(addr))
 	if err != nil {
