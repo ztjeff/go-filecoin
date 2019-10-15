@@ -2,11 +2,11 @@ package validation
 
 import (
 	"context"
-
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
+	vstorage "github.com/filecoin-project/chain-validation/pkg/storage"
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/state"
@@ -51,7 +51,7 @@ func (StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tre
 	return &stateTreeWrapper{fcTree}, nil
 }
 
-func (StateFactory) ApplyMessage(vctx vstate.VMParams, tree vstate.Tree, message interface{}) (vstate.Tree, error) {
+func (StateFactory) ApplyMessage(vmContext *vstate.VMContext, tree vstate.Tree, message interface{}) (vstate.Tree, error) {
 	ctx := context.TODO()
 
 	// get the message as a filecoin message
@@ -75,8 +75,8 @@ func (StateFactory) ApplyMessage(vctx vstate.VMParams, tree vstate.Tree, message
 	fcTree := tree.(state.Tree)
 	cachedSt := state.NewCachedStateTree(fcTree)
 
-	// wrapper around storage map
-	fcStorageMap := vctx.StorageMap().(*storageMapWrapper).StorageMap
+	// to filecoin storage map
+	fcStorageMap := vmContext.Store.(*StorageMapWrapper)
 
 	vmCtxParams := vm.NewContextParams{
 		From:        &fcFromActor.Actor,
@@ -84,12 +84,10 @@ func (StateFactory) ApplyMessage(vctx vstate.VMParams, tree vstate.Tree, message
 		Message:     fcMsg,
 		State:       cachedSt,
 		GasTracker:  vm.NewGasTracker(),
-		StorageMap:  fcStorageMap,
-		BlockHeight: types.NewBlockHeight(vctx.BlockHeight()),
-
-		// Ancestors: // this is only used by SampleChainRandomness when called by getPoStChallengeSeed which is only used
-		// for SubmitPoSt method.
-		// Actors: // TODO need a map of all builtin actors here
+		StorageMap:  fcStorageMap.StorageMap,
+		//BlockHeight:
+		//Ancestors:
+		//Actors:
 	}
 	vmCtx := vm.NewVMContext(vmCtxParams)
 
@@ -126,26 +124,6 @@ func (StateFactory) ApplyMessage(vctx vstate.VMParams, tree vstate.Tree, message
 
 	return stw, nil
 
-}
-
-//
-// StorageMap Wrapper
-//
-
-type storageMapWrapper struct {
-	vm.StorageMap
-}
-
-func (s *storageMapWrapper) NewStorage(addr address.Address, actor *actor.Actor) vm.Storage {
-	panic("NYI")
-}
-
-func (s *storageMapWrapper) Flush() error {
-	panic("NYI")
-}
-
-func (s *storageMapWrapper) Get(c cid.Cid, out interface{}) error {
-	panic("NYI")
 }
 
 //
@@ -196,10 +174,7 @@ func (s *stateTreeWrapper) Cid() cid.Cid {
 	panic("implement me")
 }
 
-func (s *stateTreeWrapper) ActorStorage(vstate.Address) (vstate.Storage, error) {
+func (s *stateTreeWrapper) ActorStorage(vstate.Address) (vstorage.Storage, error) {
 	panic("implement me")
 }
 
-//
-// Cached State Tree
-//

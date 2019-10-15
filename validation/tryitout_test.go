@@ -10,5 +10,6 @@ import (
 func TestTryItOut(t *testing.T) {
 	stateFactory := StateFactory{}
 	msgFactory := &MessageFactory{}
-	vmtool.TryItOut(t, msgFactory, stateFactory)
+	storageFactory := &StorageFactory{}
+	vmtool.TryItOut(t, msgFactory, stateFactory, storageFactory)
 }
