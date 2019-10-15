@@ -75,7 +75,7 @@ func (StateFactory) ApplyMessage(vmContext *vstate.VMContext, tree vstate.Tree, 
 	cachedSt := state.NewCachedStateTree(fcTree)
 
 	// to filecoin storage map
-	fcStorageMap := vmContext.Store.(*StorageMapWrapper)
+	fcStorageMap := vmContext.Store.(StorageMapWrapper)
 
 	vmCtxParams := vm.NewContextParams{
 		From:        &fcFromActor.Actor,
