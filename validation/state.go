@@ -7,7 +7,6 @@ import (
 	"github.com/ipfs/go-hamt-ipld"
 
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
-
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/state"
@@ -33,8 +32,9 @@ func (StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tre
 
 	cst := hamt.NewCborStore()
 	fcTree := state.NewEmptyStateTree(cst)
+
 	for addr, act := range actors {
-		actAddr, err := address.NewFromString(string(addr))
+		actAddr, err := address.NewFromBytes([]byte(addr))
 		if err != nil {
 			return nil, err
 		}
@@ -48,25 +48,24 @@ func (StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tre
 	if err != nil {
 		return nil, err
 	}
-	wTree := fcTree.(vstate.Tree)
-	return wTree, nil
+	return &stateTreeWrapper{fcTree}, nil
 }
 
-func (StateFactory) ApplyMessage(tree vstate.Tree, message interface{}) (vstate.Tree, error) {
+func (StateFactory) ApplyMessage(vctx vstate.VMParams, tree vstate.Tree, message interface{}) (vstate.Tree, error) {
 	ctx := context.TODO()
 
 	// get the message as a filecoin message
 	fcMsg := message.(*types.Message)
 
 	// from actor as filecoin actor
-	rawActor, err := tree.Actor(vstate.Address(fcMsg.From.String()))
+	rawActor, err := tree.Actor(vstate.Address(fcMsg.From.Bytes()))
 	if err != nil {
 		return nil, err
 	}
 	fcFromActor := rawActor.(*actorWrapper)
 
 	// to actor as filecoin actor
-	rawActor, err = tree.Actor(vstate.Address(fcMsg.To.String()))
+	rawActor, err = tree.Actor(vstate.Address(fcMsg.To.Bytes()))
 	if err != nil {
 		return nil, err
 	}
@@ -76,15 +75,20 @@ func (StateFactory) ApplyMessage(tree vstate.Tree, message interface{}) (vstate.
 	fcTree := tree.(state.Tree)
 	cachedSt := state.NewCachedStateTree(fcTree)
 
+	// wrapper around storage map
+	fcStorageMap := vctx.StorageMap().(*storageMapWrapper).StorageMap
+
 	vmCtxParams := vm.NewContextParams{
-		From:       &fcFromActor.Actor,
-		To:         &fcToActor.Actor,
-		Message:    fcMsg,
-		State:      cachedSt,
-		GasTracker: vm.NewGasTracker(),
-		// Ancestors: // TODO plumb it in, not simple when we just have messages and no convept of blocks/TipSets
-		// StorageMap: // TODO not sure what goes here, probably a combination of actor, blockstore/hamt thingy, and a cache/map thingy.
-		// BlockHeight: // TODO we are only dealing with messages here, not sure what this is either
+		From:        &fcFromActor.Actor,
+		To:          &fcToActor.Actor,
+		Message:     fcMsg,
+		State:       cachedSt,
+		GasTracker:  vm.NewGasTracker(),
+		StorageMap:  fcStorageMap,
+		BlockHeight: types.NewBlockHeight(vctx.BlockHeight()),
+
+		// Ancestors: // this is only used by SampleChainRandomness when called by getPoStChallengeSeed which is only used
+		// for SubmitPoSt method.
 		// Actors: // TODO need a map of all builtin actors here
 	}
 	vmCtx := vm.NewVMContext(vmCtxParams)
@@ -125,6 +129,26 @@ func (StateFactory) ApplyMessage(tree vstate.Tree, message interface{}) (vstate.
 }
 
 //
+// StorageMap Wrapper
+//
+
+type storageMapWrapper struct {
+	vm.StorageMap
+}
+
+func (s *storageMapWrapper) NewStorage(addr address.Address, actor *actor.Actor) vm.Storage {
+	panic("NYI")
+}
+
+func (s *storageMapWrapper) Flush() error {
+	panic("NYI")
+}
+
+func (s *storageMapWrapper) Get(c cid.Cid, out interface{}) error {
+	panic("NYI")
+}
+
+//
 // Actor Wrapper
 //
 
@@ -157,7 +181,7 @@ type stateTreeWrapper struct {
 }
 
 func (s *stateTreeWrapper) Actor(addr vstate.Address) (vstate.Actor, error) {
-	vaddr, err := address.NewFromString(string(addr))
+	vaddr, err := address.NewFromBytes([]byte(addr))
 	if err != nil {
 		return nil, err
 	}
