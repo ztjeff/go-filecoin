@@ -1,9 +1,9 @@
 package validation
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -26,7 +26,7 @@ import (
 
 type StateFactory struct {
 	processor *consensus.DefaultProcessor
-	addrMgr *sigAddressManager
+	keys      *keyStore
 }
 
 var _ vstate.StateFactory = &StateFactory{}
@@ -39,8 +39,16 @@ func NewStateFactory() *StateFactory {
 		consensus.NewDefaultBlockRewarder(),
 		builtin.DefaultActors,
 	),
-		newSigAddressManager(),
+		newKeyStore(),
 	}
+}
+
+func (s *StateFactory) Signer() *keyStore {
+	return s.keys
+}
+
+func (s *StateFactory) NewAddress() (vstate.Address, error) {
+	return s.keys.NewAddress()
 }
 
 func (s *StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Actor {
@@ -48,25 +56,6 @@ func (s *StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Act
 		Code:    code,
 		Balance: types.NewAttoFIL(balance),
 	}}
-}
-
-func (s *StateFactory) NewAddress() (vstate.Address, error) {
-	prv, err := crypto.GenerateKeyFromSeed(bytes.NewReader([]byte{s.addrMgr.seed}))
-	if err != nil {
-		return "", err
-	}
-
-	ki := &types.KeyInfo{
-		PrivateKey: prv,
-		Curve:     "secp256k1",
-	}
-	newAddr, err := vstate.NewSecp256k1Address(ki.PublicKey())
-	if err != nil {
-		return "", err
-	}
-	s.addrMgr.addressKeys[newAddr] = ki
-	s.addrMgr.seed++
-	return newAddr, nil
 }
 
 func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tree, vstate.StorageMap, error) {
@@ -123,31 +112,50 @@ func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap,
 }
 
 //
-// Signed Address Manager
+// Key store
 //
 
-func newSigAddressManager() *sigAddressManager {
-	return &sigAddressManager{
-		addressKeys: make(map[vstate.Address]*types.KeyInfo),
+type keyStore struct {
+	// Private keys by address
+	keys map[address.Address]*types.KeyInfo
+	// Seed for deterministic key generation.
+	seed int64
+}
+
+func newKeyStore() *keyStore {
+	return &keyStore{
+		keys: make(map[address.Address]*types.KeyInfo),
 		seed: 0,
 	}
 }
 
-type sigAddressManager struct {
-	// mapping of addresses to their pk/sk pairs
-	addressKeys map[vstate.Address]*types.KeyInfo
-	seed byte
+func (s *keyStore) NewAddress() (vstate.Address, error) {
+	randSrc := rand.New(rand.NewSource(s.seed))
+	prv, err := crypto.GenerateKeyFromSeed(randSrc)
+	if err != nil {
+		return "", err
+	}
+
+	ki := &types.KeyInfo{
+		PrivateKey: prv,
+		Curve:      "secp256k1",
+	}
+	addr, err := ki.Address()
+	if err != nil {
+		return "", err
+	}
+	s.keys[addr] = ki
+	s.seed++
+	return vstate.Address(addr.Bytes()), nil
 }
 
-func (as *sigAddressManager) SignBytes(data []byte, addr vstate.Address) (vstate.Signature, error) {
-	ki, ok := as.addressKeys[addr]
+func (as *keyStore) SignBytes(data []byte, addr address.Address) (types.Signature, error) {
+	ki, ok := as.keys[addr]
 	if !ok {
-		return vstate.Signature{}, fmt.Errorf("unknown address for signing: %v", addr)
+		return types.Signature{}, fmt.Errorf("unknown address %v", addr)
 	}
 	return wutil.Sign(ki.Key(), data)
 }
-
-
 
 //
 // Actor Wrapper

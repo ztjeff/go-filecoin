@@ -157,12 +157,6 @@ func NewFakeProcessor() *consensus.DefaultProcessor {
 	return consensus.NewConfiguredProcessor(&FakeSignedMessageValidator{}, &FakeBlockRewarder{}, builtin.DefaultActors)
 }
 
-type testSigner struct{}
-
-func (ms testSigner) SignBytes(data []byte, addr address.Address) (types.Signature, error) {
-	return types.Signature{}, nil
-}
-
 // ApplyTestMessage sends a message directly to the vm, bypassing message
 // validation
 func ApplyTestMessage(st state.Tree, store vm.StorageMap, msg *types.UnsignedMessage, bh *types.BlockHeight) (*consensus.ApplicationResult, error) {

@@ -69,7 +69,6 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.1.2-0.20191018084750-aa9a8756d47b
 	github.com/libp2p/go-libp2p-swarm v0.2.2
 	github.com/libp2p/go-stream-muxer v0.0.1
-	github.com/libp2p/go-testutil v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.1
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/sha256-simd v0.1.1 // indirect
