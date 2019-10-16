@@ -1,6 +1,8 @@
 package validation
 
 import (
+	"math/big"
+
 	"github.com/filecoin-project/chain-validation/pkg/chain"
 	"github.com/filecoin-project/chain-validation/pkg/state"
 
@@ -10,12 +12,13 @@ import (
 )
 
 type MessageFactory struct {
+	signer types.Signer
 }
 
 var _ chain.MessageFactory = &MessageFactory{}
 
-func NewMessageFactory() *MessageFactory {
-	return &MessageFactory{}
+func NewMessageFactory(signer types.Signer) *MessageFactory {
+	return &MessageFactory{signer}
 }
 
 func (mf *MessageFactory) MakeMessage(from, to state.Address, method state.MethodID, nonce uint64, value state.AttoFIL, params ...interface{}) (interface{}, error) {
@@ -32,5 +35,9 @@ func (mf *MessageFactory) MakeMessage(from, to state.Address, method state.Metho
 	if err != nil {
 		return nil, err
 	}
-	return types.NewMessage(fromDec, toDec, nonce, valueDec, string(method), paramsDec), nil
+	msg := types.NewMessage(fromDec, toDec, nonce, valueDec, string(method), paramsDec)
+
+	gasPrice:= types.NewAttoFIL(big.NewInt(1))
+	gasLimit := types.NewGasUnits(1000)
+	return types.NewSignedMessage(*msg, mf.signer, gasPrice, gasLimit)
 }

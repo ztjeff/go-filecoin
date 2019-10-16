@@ -29,7 +29,7 @@ require (
 	github.com/gorilla/mux v1.7.0 // indirect
 	github.com/ipfs/go-bitswap v0.1.5
 	github.com/ipfs/go-block-format v0.0.2
-	github.com/ipfs/go-blockservice v0.0.2
+	github.com/ipfs/go-blockservice v0.1.0
 	github.com/ipfs/go-car v0.0.1
 	github.com/ipfs/go-cid v0.0.3
 	github.com/ipfs/go-datastore v0.0.5
@@ -49,7 +49,7 @@ require (
 	github.com/ipfs/go-ipld-cbor v0.0.3
 	github.com/ipfs/go-ipld-format v0.0.2
 	github.com/ipfs/go-log v0.0.1
-	github.com/ipfs/go-merkledag v0.0.2
+	github.com/ipfs/go-merkledag v0.2.4
 	github.com/ipfs/go-path v0.0.1
 	github.com/ipfs/go-unixfs v0.0.1
 	github.com/ipfs/iptb v1.3.8-0.20190401234037-98ccf4228a73
@@ -68,7 +68,6 @@ require (
 	github.com/libp2p/go-libp2p-swarm v0.1.1
 	github.com/libp2p/go-openssl v0.0.2 // indirect
 	github.com/libp2p/go-stream-muxer v0.0.1
-	github.com/libp2p/go-testutil v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.1
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/sha256-simd v0.1.1 // indirect

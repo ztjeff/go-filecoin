@@ -9,6 +9,6 @@ import (
 
 func TestTryItOut(t *testing.T) {
 	stateFactory := NewStateFactory()
-	msgFactory := NewMessageFactory()
+	msgFactory := NewMessageFactory(stateFactory.Signer())
 	vmtool.TryItOut(t, msgFactory, stateFactory)
 }

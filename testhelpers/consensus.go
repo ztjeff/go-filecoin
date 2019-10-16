@@ -157,12 +157,6 @@ func NewFakeProcessor() *consensus.DefaultProcessor {
 	return consensus.NewConfiguredProcessor(&FakeSignedMessageValidator{}, &FakeBlockRewarder{}, builtin.DefaultActors)
 }
 
-type testSigner struct{}
-
-func (ms testSigner) SignBytes(data []byte, addr address.Address) (types.Signature, error) {
-	return types.Signature{}, nil
-}
-
 // ApplyTestMessage sends a message directly to the vm, bypassing message
 // validation
 func ApplyTestMessage(st state.Tree, store vm.StorageMap, msg *types.Message, bh *types.BlockHeight) (*consensus.ApplicationResult, error) {
@@ -213,7 +207,7 @@ func CreateAndApplyTestMessage(t *testing.T, st state.Tree, vms vm.StorageMap, t
 }
 
 func applyTestMessageWithAncestors(actors builtin.Actors, st state.Tree, store vm.StorageMap, msg *types.Message, bh *types.BlockHeight, ancestors []types.TipSet) (*consensus.ApplicationResult, error) {
-	smsg, err := types.NewSignedMessage(*msg, testSigner{}, types.NewGasPrice(1), types.NewGasUnits(300))
+	smsg, err := types.NewSignedMessage(*msg, types.NewMockSigner([]types.KeyInfo{}), types.NewGasPrice(1), types.NewGasUnits(300))
 	if err != nil {
 		panic(err)
 	}
