@@ -3,130 +3,99 @@ package validation
 import (
 	"context"
 	"fmt"
+
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-hamt-ipld"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
 
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
+
 	"github.com/filecoin-project/go-filecoin/actor"
+	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/address"
+	"github.com/filecoin-project/go-filecoin/consensus"
+	"github.com/filecoin-project/go-filecoin/message"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
-	"github.com/filecoin-project/go-filecoin/vm/errors"
 )
 
 type StateFactory struct {
+	processor *consensus.DefaultProcessor
 }
 
 var _ vstate.StateFactory = &StateFactory{}
 
-func (StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Actor {
+func NewStateFactory() *StateFactory {
+	// TODO change this to NewDefaultProcessor after the ApplyMessage type is changed to require
+	// MeteredMessage instead of SignedMessage
+	return &StateFactory{consensus.NewConfiguredProcessor(
+		&message.FakeValidator{},
+		consensus.NewDefaultBlockRewarder(),
+		builtin.DefaultActors,
+	)}
+}
+
+func (s *StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Actor {
 	return &actorWrapper{actor.Actor{
 		Code:    code,
 		Balance: types.NewAttoFIL(balance),
 	}}
 }
 
-func (StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tree, error) {
+func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tree, vstate.StorageMap, error) {
 	ctx := context.TODO()
 
-	cst := hamt.NewCborStore()
-	fcTree := state.NewEmptyStateTree(cst)
+	bs := blockstore.NewBlockstore(datastore.NewMapDatastore())
+	cst := hamt.CSTFromBstore(bs)
+	treeImpl := state.NewEmptyStateTree(cst)
+	storageImpl := vm.NewStorageMap(bs)
 
 	for addr, act := range actors {
 		actAddr, err := address.NewFromBytes([]byte(addr))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		actw := act.(*actorWrapper)
 		fmt.Println("setting actor", actw)
-		if err := fcTree.SetActor(ctx, actAddr, &actw.Actor); err != nil {
-			return nil, err
+		if err := treeImpl.SetActor(ctx, actAddr, &actw.Actor); err != nil {
+			return nil, nil, err
 		}
 	}
 
-	_, err := fcTree.Flush(ctx)
+	_, err := treeImpl.Flush(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &stateTreeWrapper{fcTree}, nil
+	return &stateTreeWrapper{treeImpl}, &storageMapWrapper{storageImpl}, nil
 }
 
-func (StateFactory) ApplyMessage(vmContext *vstate.VMContext, tree vstate.Tree, message interface{}) (vstate.Tree, error) {
+func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap, eCtx *vstate.ExecutionContext, message interface{}) (vstate.Tree, error) {
 	ctx := context.TODO()
-
-	// get the message as a filecoin message
-	fcMsg := message.(*types.Message)
-
-	// from actor as filecoin actor
-	rawActor, err := tree.Actor(vstate.Address(fcMsg.From.Bytes()))
+	stateTree := tree.(*stateTreeWrapper).Tree
+	vms := storage.(*storageMapWrapper).StorageMap
+	msg := message.(*types.SignedMessage) // FIXME this will fail because it's not a signed message
+	minerOwner, err := address.NewFromBytes([]byte(eCtx.MinerOwner))
 	if err != nil {
 		return nil, err
 	}
-	fcFromActor := rawActor.(*actorWrapper)
+	blockHeight := types.NewBlockHeight(eCtx.Epoch)
+	gasTracker := vm.NewGasTracker()
+	// Providing direct access to blockchain structures is very difficult and expected to go away.
+	var ancestors []types.TipSet
 
-	// to actor as filecoin actor
-	rawActor, err = tree.Actor(vstate.Address(fcMsg.To.Bytes()))
+	_, err = s.processor.ApplyMessage(ctx, stateTree, vms, msg, minerOwner, blockHeight, gasTracker, ancestors)
+
 	if err != nil {
 		return nil, err
 	}
-	fcToActor := rawActor.(*actorWrapper)
+	// FIXME return the receipt value too
 
-	// need a _cached_state tree
-	fcTree := tree.(state.Tree)
-	cachedSt := state.NewCachedStateTree(fcTree)
-
-	// to filecoin storage map
-	fcStorageMap := vmContext.Store.(StorageMapWrapper)
-
-	vmCtxParams := vm.NewContextParams{
-		From:       &fcFromActor.Actor,
-		To:         &fcToActor.Actor,
-		Message:    fcMsg,
-		State:      cachedSt,
-		GasTracker: vm.NewGasTracker(),
-		StorageMap: fcStorageMap.StorageMap,
-		//BlockHeight:
-		//Ancestors:
-		//Actors:
-	}
-	vmCtx := vm.NewVMContext(vmCtxParams)
-	// TODO this isn't write, need to check errors correctly
-	_, exitCode, vmErr := vmCtx.Send(fcMsg.From, fcMsg.Method, fcMsg.Value, []interface{}{})
-	if vmErr != nil {
-		return nil, err
-	}
-	if exitCode != 0 {
-		panic(fmt.Sprintln("non-zero exit", exitCode))
-	}
-
-	if err := cachedSt.Commit(ctx); err != nil {
-		return nil, err
-	}
-
-	// At this point we consider the message successfully applied so inc
-	// the nonce.
-	fromActor, err := fcTree.GetActor(ctx, fcMsg.From)
-	if err != nil {
-		return nil, errors.FaultErrorWrap(err, "couldn't load from actor")
-	}
-	fromActor.IncNonce()
-	if err := fcTree.SetActor(ctx, fcMsg.From, fromActor); err != nil {
-		return nil, errors.FaultErrorWrap(err, "could not set from actor after inc nonce")
-	}
-
-	// in go-filecoin after a message is applied it walks all the way up the consensus stack and
-	// calls  stateTree.Flush in RunStateTransition(), well pretend that's here.
-	if _, err := fcTree.Flush(ctx); err != nil {
-		return nil, err
-	}
-
-	stw := &stateTreeWrapper{
-		Tree: fcTree,
-	}
-
-	return stw, nil
-
+	// The intention of this method is to leave the input tree untouched and return a new one.
+	// FIXME the state.Tree implements a mutable tree - it's impossible to hold on to the prior state
+	// We might need to implement our own state tree to achieve that, or make extensive improvement to go-filecoin.
+	return tree, nil
 }
 
 //
@@ -179,4 +148,21 @@ func (s *stateTreeWrapper) Cid() cid.Cid {
 
 func (s *stateTreeWrapper) ActorStorage(vstate.Address) (vstate.Storage, error) {
 	panic("implement me")
+}
+
+//
+// Storage wrapper
+//
+
+type storageMapWrapper struct {
+	vm.StorageMap
+}
+
+func (s *storageMapWrapper) NewStorage(addr vstate.Address, actor vstate.Actor) (vstate.Storage, error) {
+	fcActor := actor.(*actorWrapper)
+	fcAddr, err := address.NewFromBytes([]byte(addr))
+	if err != nil {
+		return nil, err
+	}
+	return s.StorageMap.NewStorage(fcAddr, &fcActor.Actor), nil
 }
