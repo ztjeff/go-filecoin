@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -15,14 +16,17 @@ import (
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/consensus"
+	"github.com/filecoin-project/go-filecoin/crypto"
 	"github.com/filecoin-project/go-filecoin/message"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
+	wutil "github.com/filecoin-project/go-filecoin/wallet/util"
 )
 
 type StateFactory struct {
 	processor *consensus.DefaultProcessor
+	addrMgr *sigAddressManager
 }
 
 var _ vstate.StateFactory = &StateFactory{}
@@ -34,7 +38,9 @@ func NewStateFactory() *StateFactory {
 		&message.FakeValidator{},
 		consensus.NewDefaultBlockRewarder(),
 		builtin.DefaultActors,
-	)}
+	),
+		newSigAddressManager(),
+	}
 }
 
 func (s *StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Actor {
@@ -42,6 +48,25 @@ func (s *StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Act
 		Code:    code,
 		Balance: types.NewAttoFIL(balance),
 	}}
+}
+
+func (s *StateFactory) NewAddress() (vstate.Address, error) {
+	prv, err := crypto.GenerateKeyFromSeed(bytes.NewReader([]byte{s.addrMgr.seed}))
+	if err != nil {
+		return "", err
+	}
+
+	ki := &types.KeyInfo{
+		PrivateKey: prv,
+		Curve:     "secp256k1",
+	}
+	newAddr, err := vstate.NewSecp256k1Address(ki.PublicKey())
+	if err != nil {
+		return "", err
+	}
+	s.addrMgr.addressKeys[newAddr] = ki
+	s.addrMgr.seed++
+	return newAddr, nil
 }
 
 func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tree, vstate.StorageMap, error) {
@@ -86,7 +111,6 @@ func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap,
 	var ancestors []types.TipSet
 
 	_, err = s.processor.ApplyMessage(ctx, stateTree, vms, msg, minerOwner, blockHeight, gasTracker, ancestors)
-
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +121,33 @@ func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap,
 	// We might need to implement our own state tree to achieve that, or make extensive improvement to go-filecoin.
 	return tree, nil
 }
+
+//
+// Signed Address Manager
+//
+
+func newSigAddressManager() *sigAddressManager {
+	return &sigAddressManager{
+		addressKeys: make(map[vstate.Address]*types.KeyInfo),
+		seed: 0,
+	}
+}
+
+type sigAddressManager struct {
+	// mapping of addresses to their pk/sk pairs
+	addressKeys map[vstate.Address]*types.KeyInfo
+	seed byte
+}
+
+func (as *sigAddressManager) SignBytes(data []byte, addr vstate.Address) (vstate.Signature, error) {
+	ki, ok := as.addressKeys[addr]
+	if !ok {
+		return vstate.Signature{}, fmt.Errorf("unknown address for signing: %v", addr)
+	}
+	return wutil.Sign(ki.Key(), data)
+}
+
+
 
 //
 // Actor Wrapper
