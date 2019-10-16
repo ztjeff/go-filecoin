@@ -85,30 +85,34 @@ func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.
 	return &stateTreeWrapper{treeImpl}, &storageMapWrapper{storageImpl}, nil
 }
 
-func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap, eCtx *vstate.ExecutionContext, message interface{}) (vstate.Tree, error) {
+func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap, eCtx *vstate.ExecutionContext, message interface{}) (vstate.Tree, vstate.MessageReceiept, error) {
 	ctx := context.TODO()
 	stateTree := tree.(*stateTreeWrapper).Tree
 	vms := storage.(*storageMapWrapper).StorageMap
 	msg := message.(*types.SignedMessage) // FIXME this will fail because it's not a signed message
 	minerOwner, err := address.NewFromBytes([]byte(eCtx.MinerOwner))
 	if err != nil {
-		return nil, err
+		return nil, vstate.MessageReceiept{}, err
 	}
 	blockHeight := types.NewBlockHeight(eCtx.Epoch)
 	gasTracker := vm.NewGasTracker()
 	// Providing direct access to blockchain structures is very difficult and expected to go away.
 	var ancestors []types.TipSet
 
-	_, err = s.processor.ApplyMessage(ctx, stateTree, vms, msg, minerOwner, blockHeight, gasTracker, ancestors)
+	amr, err := s.processor.ApplyMessage(ctx, stateTree, vms, msg, minerOwner, blockHeight, gasTracker, ancestors)
 	if err != nil {
-		return nil, err
+		return nil, vstate.MessageReceiept{}, err
 	}
-	// FIXME return the receipt value too
+	mr := vstate.MessageReceiept{
+		Exitcode:    amr.Receipt.ExitCode,
+		ReturnValue: amr.Receipt.Return,
+		GasUsed:     vstate.AttoFIL(amr.Receipt.GasAttoFIL.AsBigInt()),
+	}
 
 	// The intention of this method is to leave the input tree untouched and return a new one.
 	// FIXME the state.Tree implements a mutable tree - it's impossible to hold on to the prior state
 	// We might need to implement our own state tree to achieve that, or make extensive improvement to go-filecoin.
-	return tree, nil
+	return tree, mr, nil
 }
 
 //
