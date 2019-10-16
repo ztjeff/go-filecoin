@@ -2,6 +2,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-hamt-ipld"
 
@@ -38,6 +39,7 @@ func (StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tre
 			return nil, err
 		}
 		actw := act.(*actorWrapper)
+		fmt.Println("setting actor", actw)
 		if err := fcTree.SetActor(ctx, actAddr, &actw.Actor); err != nil {
 			return nil, err
 		}
@@ -78,24 +80,26 @@ func (StateFactory) ApplyMessage(vmContext *vstate.VMContext, tree vstate.Tree, 
 	fcStorageMap := vmContext.Store.(StorageMapWrapper)
 
 	vmCtxParams := vm.NewContextParams{
-		From:        &fcFromActor.Actor,
-		To:          &fcToActor.Actor,
-		Message:     fcMsg,
-		State:       cachedSt,
-		GasTracker:  vm.NewGasTracker(),
-		StorageMap:  fcStorageMap.StorageMap,
+		From:       &fcFromActor.Actor,
+		To:         &fcToActor.Actor,
+		Message:    fcMsg,
+		State:      cachedSt,
+		GasTracker: vm.NewGasTracker(),
+		StorageMap: fcStorageMap.StorageMap,
 		//BlockHeight:
 		//Ancestors:
 		//Actors:
 	}
 	vmCtx := vm.NewVMContext(vmCtxParams)
-
 	// TODO this isn't write, need to check errors correctly
-	_, _, vmErr := vm.Send(ctx, vmCtx)
+	_, exitCode, vmErr := vmCtx.Send(fcMsg.From, fcMsg.Method, fcMsg.Value, []interface{}{})
 	if vmErr != nil {
 		return nil, err
 	}
-	// if there wasn't a vm error we can update state
+	if exitCode != 0 {
+		panic(fmt.Sprintln("non-zero exit", exitCode))
+	}
+
 	if err := cachedSt.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -176,4 +180,3 @@ func (s *stateTreeWrapper) Cid() cid.Cid {
 func (s *stateTreeWrapper) ActorStorage(vstate.Address) (vstate.Storage, error) {
 	panic("implement me")
 }
-
