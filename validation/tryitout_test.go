@@ -8,8 +8,7 @@ import (
 )
 
 func TestTryItOut(t *testing.T) {
-	stateFactory := StateFactory{}
-	msgFactory := &MessageFactory{}
-	storageFactory := &StorageFactory{}
-	vmtool.TryItOut(t, msgFactory, stateFactory, storageFactory)
+	stateFactory := NewStateFactory()
+	msgFactory := NewMessageFactory()
+	vmtool.TryItOut(t, msgFactory, stateFactory)
 }

@@ -14,7 +14,7 @@ import (
 )
 
 func TestMessageFactory(t *testing.T) {
-	factory := &MessageFactory{}
+	factory := NewMessageFactory()
 	p := chain.NewMessageProducer(factory)
 
 	require.NoError(t, p.Transfer(state.NetworkAddress, state.BurntFundsAddress, big.NewInt(1)))
@@ -26,5 +26,3 @@ func TestMessageFactory(t *testing.T) {
 	assert.Equal(t, address.BurntFundsAddress, msg.To)
 	assert.Equal(t, types.NewAttoFIL(big.NewInt(1)), msg.Value)
 }
-
-

@@ -14,6 +14,10 @@ type MessageFactory struct {
 
 var _ chain.MessageFactory = &MessageFactory{}
 
+func NewMessageFactory() *MessageFactory {
+	return &MessageFactory{}
+}
+
 func (mf *MessageFactory) MakeMessage(from, to state.Address, method state.MethodID, nonce uint64, value state.AttoFIL, params ...interface{}) (interface{}, error) {
 	fromDec, err := address.NewFromBytes([]byte(from))
 	if err != nil {
