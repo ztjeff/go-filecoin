@@ -13,11 +13,8 @@ import (
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
 
 	"github.com/filecoin-project/go-filecoin/actor"
-	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/address"
-	"github.com/filecoin-project/go-filecoin/consensus"
 	"github.com/filecoin-project/go-filecoin/crypto"
-	"github.com/filecoin-project/go-filecoin/message"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
@@ -25,22 +22,13 @@ import (
 )
 
 type StateFactory struct {
-	processor *consensus.DefaultProcessor
-	keys      *keyStore
+	keys *keyStore
 }
 
-var _ vstate.StateFactory = &StateFactory{}
+var _ vstate.Factory = &StateFactory{}
 
 func NewStateFactory() *StateFactory {
-	// TODO change this to NewDefaultProcessor after the ApplyMessage type is changed to require
-	// MeteredMessage instead of SignedMessage
-	return &StateFactory{consensus.NewConfiguredProcessor(
-		&message.FakeValidator{},
-		consensus.NewDefaultBlockRewarder(),
-		builtin.DefaultActors,
-	),
-		newKeyStore(),
-	}
+	return &StateFactory{newKeyStore()}
 }
 
 func (s *StateFactory) Signer() *keyStore {
@@ -83,36 +71,6 @@ func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.
 		return nil, nil, err
 	}
 	return &stateTreeWrapper{treeImpl}, &storageMapWrapper{storageImpl}, nil
-}
-
-func (s *StateFactory) ApplyMessage(tree vstate.Tree, storage vstate.StorageMap, eCtx *vstate.ExecutionContext, message interface{}) (vstate.Tree, vstate.MessageReceiept, error) {
-	ctx := context.TODO()
-	stateTree := tree.(*stateTreeWrapper).Tree
-	vms := storage.(*storageMapWrapper).StorageMap
-	msg := message.(*types.SignedMessage) // FIXME this will fail because it's not a signed message
-	minerOwner, err := address.NewFromBytes([]byte(eCtx.MinerOwner))
-	if err != nil {
-		return nil, vstate.MessageReceiept{}, err
-	}
-	blockHeight := types.NewBlockHeight(eCtx.Epoch)
-	gasTracker := vm.NewGasTracker()
-	// Providing direct access to blockchain structures is very difficult and expected to go away.
-	var ancestors []types.TipSet
-
-	amr, err := s.processor.ApplyMessage(ctx, stateTree, vms, msg, minerOwner, blockHeight, gasTracker, ancestors)
-	if err != nil {
-		return nil, vstate.MessageReceiept{}, err
-	}
-	mr := vstate.MessageReceiept{
-		Exitcode:    amr.Receipt.ExitCode,
-		ReturnValue: amr.Receipt.Return,
-		GasUsed:     vstate.AttoFIL(amr.Receipt.GasAttoFIL.AsBigInt()),
-	}
-
-	// The intention of this method is to leave the input tree untouched and return a new one.
-	// FIXME the state.Tree implements a mutable tree - it's impossible to hold on to the prior state
-	// We might need to implement our own state tree to achieve that, or make extensive improvement to go-filecoin.
-	return tree, mr, nil
 }
 
 //

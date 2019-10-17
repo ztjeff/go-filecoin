@@ -3,11 +3,10 @@ package validation
 import (
 	"testing"
 
-	vmtool "github.com/filecoin-project/chain-validation/pkg/validation"
+	"github.com/filecoin-project/chain-validation/pkg/suites"
 )
 
 func TestExample(t *testing.T) {
-	stateFactory := NewStateFactory()
-	msgFactory := NewMessageFactory(stateFactory.Signer())
-	vmtool.Example(t, msgFactory, stateFactory)
+	driver := NewDriver()
+	suites.Example(t, driver)
 }
