@@ -15,6 +15,7 @@ require (
 	github.com/docker/docker v0.7.3-0.20190315170154-87d593639c77
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
+	github.com/filecoin-project/chain-validation v0.0.0-00010101000000-000000000000
 	github.com/filecoin-project/go-bls-sigs v0.0.0
 	github.com/filecoin-project/go-leb128 v0.0.0-20190212224330-8d79a5489543
 	github.com/filecoin-project/go-sectorbuilder v0.0.0-20190801004428-e75bc9b0aaea
@@ -65,9 +66,7 @@ require (
 	github.com/libp2p/go-libp2p-peerstore v0.1.2
 	github.com/libp2p/go-libp2p-pubsub v0.1.0
 	github.com/libp2p/go-libp2p-swarm v0.1.1
-	github.com/libp2p/go-openssl v0.0.2 // indirect
 	github.com/libp2p/go-stream-muxer v0.0.1
-	github.com/libp2p/go-testutil v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.1
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/sha256-simd v0.1.1 // indirect
@@ -90,7 +89,6 @@ require (
 	github.com/prometheus/client_golang v1.1.0
 	github.com/sirupsen/logrus v1.4.2 // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
-	github.com/smola/gocompat v0.2.0 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.4.0 // indirect
