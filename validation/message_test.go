@@ -18,12 +18,15 @@ func TestMessageFactory(t *testing.T) {
 	factory := NewMessageFactory(signer)
 	p := chain.NewMessageProducer(factory)
 
+	gasPrice := big.NewInt(1)
+	gasLimit := big.NewInt(1000)
+
 	sender, err := keys[0].Address()
 	require.NoError(t, err)
-	require.NoError(t, p.Transfer(state.Address(sender.Bytes()), state.BurntFundsAddress, big.NewInt(1)))
+	require.NoError(t, p.Transfer(state.Address(sender.Bytes()), state.BurntFundsAddress, big.NewInt(1), gasPrice, gasLimit))
 
 	messages := p.Messages()
-	assert.Equal(t,1, len(messages))
+	assert.Equal(t, 1, len(messages))
 	msg := messages[0].(*types.SignedMessage)
 	assert.Equal(t, sender, msg.From)
 	assert.Equal(t, address.BurntFundsAddress, msg.To)

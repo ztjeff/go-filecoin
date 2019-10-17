@@ -22,7 +22,9 @@ func NewMessageFactory(signer types.Signer) *MessageFactory {
 	return &MessageFactory{signer}
 }
 
-func (mf *MessageFactory) MakeMessage(from, to state.Address, method chain.MethodID, nonce uint64, value state.AttoFIL, params ...interface{}) (interface{}, error) {
+func (mf *MessageFactory) MakeMessage(from, to state.Address, method chain.MethodID, nonce uint64,
+	value, gasPrice, gasLimit state.AttoFIL,
+	params ...interface{}) (interface{}, error) {
 	fromDec, err := address.NewFromBytes([]byte(from))
 	if err != nil {
 		return nil, err
@@ -42,9 +44,8 @@ func (mf *MessageFactory) MakeMessage(from, to state.Address, method chain.Metho
 	methodName := methods[method]
 	msg := types.NewMessage(fromDec, toDec, nonce, valueDec, methodName, paramsDec)
 
-	gasPrice:= types.NewAttoFIL(big.NewInt(1))
-	gasLimit := types.NewGasUnits(1000)
-	return types.NewSignedMessage(*msg, mf.signer, gasPrice, gasLimit)
+	fcGasLimit := big.Int(*gasLimit)
+	return types.NewSignedMessage(*msg, mf.signer, types.NewAttoFIL(gasPrice), types.NewGasUnits(fcGasLimit.Uint64()))
 }
 
 // Maps method enumeration values to method names.
