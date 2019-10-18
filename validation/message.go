@@ -1,8 +1,6 @@
 package validation
 
 import (
-	"math/big"
-
 	"github.com/filecoin-project/chain-validation/pkg/chain"
 	"github.com/filecoin-project/chain-validation/pkg/state"
 	"github.com/pkg/errors"
@@ -23,8 +21,7 @@ func NewMessageFactory(signer types.Signer) *MessageFactory {
 }
 
 func (mf *MessageFactory) MakeMessage(from, to state.Address, method chain.MethodID, nonce uint64,
-	value, gasPrice, gasLimit state.AttoFIL,
-	params ...interface{}) (interface{}, error) {
+	value, gasPrice state.AttoFIL, gasUnit state.GasUnit, params ...interface{}) (interface{}, error) {
 	fromDec, err := address.NewFromBytes([]byte(from))
 	if err != nil {
 		return nil, err
@@ -44,8 +41,7 @@ func (mf *MessageFactory) MakeMessage(from, to state.Address, method chain.Metho
 	methodName := methods[method]
 	msg := types.NewMessage(fromDec, toDec, nonce, valueDec, methodName, paramsDec)
 
-	fcGasLimit := big.Int(*gasLimit)
-	return types.NewSignedMessage(*msg, mf.signer, types.NewAttoFIL(gasPrice), types.NewGasUnits(fcGasLimit.Uint64()))
+	return types.NewSignedMessage(*msg, mf.signer, types.NewAttoFIL(gasPrice), types.NewGasUnits(uint64(gasUnit)))
 }
 
 // Maps method enumeration values to method names.
