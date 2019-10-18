@@ -46,7 +46,7 @@ func (s *StateFactory) NewActor(code cid.Cid, balance vstate.AttoFIL) vstate.Act
 	}}
 }
 
-func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.Tree, vstate.StorageMap, error) {
+func (s *StateFactory) NewState(actors []vstate.ActorAndAddress) (vstate.Tree, vstate.StorageMap, error) {
 	ctx := context.TODO()
 
 	bs := blockstore.NewBlockstore(datastore.NewMapDatastore())
@@ -54,12 +54,12 @@ func (s *StateFactory) NewState(actors map[vstate.Address]vstate.Actor) (vstate.
 	treeImpl := state.NewEmptyStateTree(cst)
 	storageImpl := vm.NewStorageMap(bs)
 
-	for addr, act := range actors {
-		actAddr, err := address.NewFromBytes([]byte(addr))
+	for _, a := range actors {
+		actAddr, err := address.NewFromBytes([]byte(a.Address))
 		if err != nil {
 			return nil, nil, err
 		}
-		actw := act.(*actorWrapper)
+		actw := a.Actor.(*actorWrapper)
 		fmt.Println("setting actor", actw)
 		if err := treeImpl.SetActor(ctx, actAddr, &actw.Actor); err != nil {
 			return nil, nil, err
