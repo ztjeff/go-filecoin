@@ -19,7 +19,7 @@ func TestMessageFactory(t *testing.T) {
 	p := chain.NewMessageProducer(factory)
 
 	gasPrice := big.NewInt(1)
-	gasLimit := big.NewInt(1000)
+	gasLimit := state.GasUnit(1000)
 
 	sender, err := keys[0].Address()
 	require.NoError(t, err)
