@@ -9,6 +9,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+// XXX: this should work, we just need to learn to emmit this type declarations on the register
 func init() {
 	encoding.RegisterIpldCborType(uint64AtlasEntry)
 }

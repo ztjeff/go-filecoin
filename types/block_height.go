@@ -9,6 +9,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+// XXX: i would figureo ut how to parse big.Int and encode this as a newtype
 func init() {
 	encoding.RegisterIpldCborType(blockHeightAtlasEntry)
 }

@@ -33,6 +33,7 @@ var Errors = map[uint8]error{
 }
 
 func init() {
+	// XXX: move to native support encoding library
 	encoding.RegisterIpldCborType(struct{}{})
 }
 

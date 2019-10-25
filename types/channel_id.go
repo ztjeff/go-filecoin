@@ -9,6 +9,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+// XXX: same deal, newtype around big.Int
 func init() {
 	encoding.RegisterIpldCborType(channelIDAtlasEntry)
 }

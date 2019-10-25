@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Review: turn on autoalias?
 func init() {
 	encoding.RegisterIpldCborType(fooTestMessage{})
 }

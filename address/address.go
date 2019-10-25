@@ -9,26 +9,10 @@ import (
 
 	"github.com/filecoin-project/go-bls-sigs"
 	"github.com/filecoin-project/go-filecoin/encoding"
-	"github.com/polydawn/refmt/obj/atlas"
 
 	"github.com/filecoin-project/go-leb128"
 	"github.com/minio/blake2b-simd"
 )
-
-func init() {
-	encoding.RegisterIpldCborType(addressAtlasEntry)
-}
-
-var addressAtlasEntry = atlas.BuildEntry(Address{}).Transform().
-	TransformMarshal(atlas.MakeMarshalTransformFunc(
-		func(a Address) ([]byte, error) {
-			return a.Bytes(), nil
-		})).
-	TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(
-		func(x []byte) (Address, error) {
-			return NewFromBytes(x)
-		})).
-	Complete()
 
 // Address is the go type that represents an address in the filecoin network.
 type Address struct{ str string }
@@ -162,6 +146,7 @@ func NewFromString(addr string) (Address, error) {
 	return decode(addr)
 }
 
+// Review: when is this called? and where are we encoding addresses by hand? or expecting them to be raw?
 // NewFromBytes return the address represented by the bytes `addr`.
 func NewFromBytes(addr []byte) (Address, error) {
 	if len(addr) == 0 {

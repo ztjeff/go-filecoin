@@ -10,6 +10,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/paymentbroker"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/storagemarket"
+	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/block"
 	"github.com/filecoin-project/go-filecoin/encoding/gen"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
@@ -20,8 +21,9 @@ import (
 	logging "github.com/ipfs/go-log"
 )
 
-// var base = "/tmp/encoding_gen"
-var base = "."
+var base = "/tmp/encoding_gen"
+
+// var base = "."
 
 func main() {
 	logging.SetAllLoggers(logging.LevelDebug)
@@ -60,13 +62,18 @@ func main() {
 
 	if err := gen.WriteToFile(filepath.Join(base, "actor/builtin/storagemarket/storagemarket_encoding_gen.go"), gen.IpldCborTypeEncodingGenerator{}, "storagemarket",
 		storagemarket.State{}, // actor/builtin/storagemarket/storagemarket.go
+		// gen.TypeOpt{Value: struct{}{}, GenerateEncode: false, GenerateDecode: false}, // actor/builtin/storagemarket/storagemarket.go XXX: we should just have this in the encoding
 	); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	// struct{}{},                     // actor/built-in/storagemarket.go XXX: unit aint working
-	// address.Address{}, // address/address.go XXX: custom
+	if err := gen.WriteToFile(filepath.Join(base, "address/address_encoding_gen.go"), gen.IpldCborTypeEncodingGenerator{}, "address",
+		gen.TypeOpt{Value: address.Address{}, Mode: gen.NewTypeStructMode},
+	); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	if err := gen.WriteToFile(filepath.Join(base, "block/block_encoding_gen.go"), gen.IpldCborTypeEncodingGenerator{}, "block",
 		block.Block{},  // block/block.go

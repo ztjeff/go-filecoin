@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
+// XXX: private type
 func init() {
 	encoding.RegisterIpldCborType(dealsAwaitingSeal{})
 }

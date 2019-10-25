@@ -12,6 +12,7 @@ import (
 
 // NOTE -- All *BytesAmount methods must call ensureBytesAmounts with refs to every user-supplied value before use.
 
+// XXX: just a newtype around a big.Int
 func init() {
 	encoding.RegisterIpldCborType(bytesAmountAtlasEntry)
 	ZeroBytes = NewBytesAmount(0)

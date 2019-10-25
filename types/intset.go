@@ -9,6 +9,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+// XXX: write custom encode/decode and emit init
 func init() {
 	encoding.RegisterIpldCborType(intSetAtlasEntry)
 }

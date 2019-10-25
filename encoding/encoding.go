@@ -180,7 +180,6 @@ func decode(obj interface{}, v reflect.Value, decoder Decoder) error {
 		return decoder.DecodeValue(obj)
 	case reflect.Uint64:
 		return decoder.DecodeValue(obj)
-	// case uint128: TODO: Big uint?
 	case reflect.Int:
 		return decoder.DecodeValue(obj)
 	case reflect.Int8:
@@ -190,7 +189,6 @@ func decode(obj interface{}, v reflect.Value, decoder Decoder) error {
 	case reflect.Int32:
 		return decoder.DecodeValue(obj)
 	case reflect.Int64:
-		// case int128: TODO: Big int?
 		return decoder.DecodeValue(obj)
 	case reflect.Bool:
 		return decoder.DecodeValue(obj)

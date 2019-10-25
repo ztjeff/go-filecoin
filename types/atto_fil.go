@@ -13,6 +13,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+// XXX: lots of magic, encode/decode by hand
 func init() {
 	encoding.RegisterIpldCborType(attoFILAtlasEntry)
 }

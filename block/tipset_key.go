@@ -11,6 +11,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+// XXX: newtype iwth a sort, write custom
 func init() {
 	// A TipSetKey serializes as a sorted array of CIDs.
 	// Deserialization will sort the CIDs, if they're not already.
