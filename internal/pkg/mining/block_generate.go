@@ -67,26 +67,11 @@ func (w *DefaultWorker) Generate(ctx context.Context,
 	// bls messages are processed first
 	messages := append(blsMessages, secpMessages...)
 
+	// run state transition to learn which messages are valid
 	vms := vm.NewStorageMap(w.blockstore)
 	res, err := w.processor.ApplyMessagesAndPayRewards(ctx, stateTree, vms, messages, w.minerOwnerAddr, types.NewBlockHeight(blockHeight), ancestors)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate apply messages")
-	}
-
-	newStateTreeCid, err := stateTree.Flush(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate flush state tree")
-	}
-
-	if err = vms.Flush(); err != nil {
-		return nil, errors.Wrap(err, "generate flush vm storage map")
-	}
-
-	// By default no receipts/messages is serialized as the zero length
-	// slice, not the nil slice.
-	receipts := []*types.MessageReceipt{}
-	for _, r := range res.Results {
-		receipts = append(receipts, r.Receipt)
 	}
 
 	// split mined messages into secp and bls
@@ -103,20 +88,27 @@ func (w *DefaultWorker) Generate(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "error persisting messages")
 	}
-	rcptsCid, err := w.messageStore.StoreReceipts(ctx, receipts)
+
+	// get tipset state root and receipt root
+	baseStateRoot, err := w.tsMetadata.GetTipSetStateRoot(baseTipSet.Key())
 	if err != nil {
-		return nil, errors.Wrap(err, "error persisting receipts")
+		return nil, errors.Wrapf(err, "error retrieving state root for tipset %s", baseTipSet.Key().String())
+	}
+
+	baseReceiptRoot, err := w.tsMetadata.GetTipSetReceiptsRoot(baseTipSet.Key())
+	if err != nil {
+		return nil, errors.Wrapf(err, "error retrieving receipt root for tipset %s", baseTipSet.Key().String())
 	}
 
 	next := &block.Block{
 		Miner:           w.minerAddr,
 		Height:          types.Uint64(blockHeight),
 		Messages:        txMeta,
-		MessageReceipts: rcptsCid,
+		MessageReceipts: baseReceiptRoot,
 		Parents:         baseTipSet.Key(),
 		ParentWeight:    types.Uint64(weight),
 		ElectionProof:   electionProof,
-		StateRoot:       newStateTreeCid,
+		StateRoot:       baseStateRoot,
 		Ticket:          ticket,
 		Timestamp:       types.Uint64(w.clock.Now().Unix()),
 		BLSAggregateSig: blsAggregateSig,
