@@ -5,9 +5,9 @@ import (
 	"github.com/filecoin-project/chain-validation/pkg/state"
 	"github.com/pkg/errors"
 
-	"github.com/filecoin-project/go-filecoin/abi"
-	"github.com/filecoin-project/go-filecoin/address"
-	"github.com/filecoin-project/go-filecoin/types"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/abi"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/address"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/types"
 )
 
 type MessageFactory struct {
@@ -39,9 +39,13 @@ func (mf *MessageFactory) MakeMessage(from, to state.Address, method chain.Metho
 		return nil, errors.Errorf("No method name for method %v", method)
 	}
 	methodName := methods[method]
-	msg := types.NewMessage(fromDec, toDec, nonce, valueDec, methodName, paramsDec)
+	msg := types.NewUnsignedMessage(fromDec, toDec, nonce, valueDec, methodName, paramsDec)
 
-	return types.NewSignedMessage(*msg, mf.signer, types.NewAttoFIL(gasPrice), types.NewGasUnits(uint64(gasUnit)))
+	return types.NewSignedMessage(*msg, mf.signer)
+}
+
+func (mf *MessageFactory) FromSingletonAddress(addr state.SingletonActorID) (state.Address) {
+	return fromSingletonAddress(addr)
 }
 
 // Maps method enumeration values to method names.

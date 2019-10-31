@@ -2,14 +2,15 @@ package validation
 
 import (
 	"context"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/block"
 
 	vchain "github.com/filecoin-project/chain-validation/pkg/chain"
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
 
-	"github.com/filecoin-project/go-filecoin/address"
-	"github.com/filecoin-project/go-filecoin/consensus"
-	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/address"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/consensus"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/types"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm"
 )
 
 // Applier applies messages to state trees and storage.
@@ -35,7 +36,7 @@ func (a *Applier) ApplyMessage(eCtx *vchain.ExecutionContext, state vstate.Wrapp
 	blockHeight := types.NewBlockHeight(eCtx.Epoch)
 	gasTracker := vm.NewGasTracker()
 	// Providing direct access to blockchain structures is very difficult and expected to go away.
-	var ancestors []types.TipSet
+	var ancestors []block.TipSet
 
 	amr, err := a.processor.ApplyMessage(ctx, stateTree, vms, msg, minerOwner, blockHeight, gasTracker, ancestors)
 	if err != nil {

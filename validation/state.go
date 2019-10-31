@@ -11,14 +11,12 @@ import (
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 
 	vstate "github.com/filecoin-project/chain-validation/pkg/state"
-
-	"github.com/filecoin-project/go-filecoin/actor"
-	"github.com/filecoin-project/go-filecoin/address"
-	"github.com/filecoin-project/go-filecoin/crypto"
-	"github.com/filecoin-project/go-filecoin/state"
-	"github.com/filecoin-project/go-filecoin/types"
-	"github.com/filecoin-project/go-filecoin/vm"
-	wutil "github.com/filecoin-project/go-filecoin/wallet/util"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/crypto"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/types"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/actor"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/address"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/state"
 )
 
 type StateWrapper struct {
@@ -73,14 +71,14 @@ func (s *StateWrapper) NewAccountAddress() (vstate.Address, error) {
 	return s.keys.newAddress()
 }
 
-func (s *StateWrapper) SetActor(addr vstate.Address, code cid.Cid, balance vstate.AttoFIL) (vstate.Actor, vstate.Storage, error) {
+func (s *StateWrapper) SetActor(addr vstate.Address, code vstate.ActorCodeID, balance vstate.AttoFIL) (vstate.Actor, vstate.Storage, error) {
 	ctx := context.TODO()
 	addrInt, err := address.NewFromBytes([]byte(addr))
 	if err != nil {
 		return nil, nil, err
 	}
 	actr := &actorWrapper{actor.Actor{
-		Code:    code,
+		Code:    fromActorCode(code),
 		Balance: types.NewAttoFIL(balance),
 	}}
 	if err := s.Tree.SetActor(ctx, addrInt, &actr.Actor); err != nil {
@@ -93,6 +91,10 @@ func (s *StateWrapper) SetActor(addr vstate.Address, code cid.Cid, balance vstat
 
 	storage := s.NewStorage(addrInt, &actr.Actor)
 	return actr, storage, nil
+}
+
+func (s *StateWrapper) SetSingletonActor(addr vstate.SingletonActorID, balance vstate.AttoFIL) (vstate.Actor, vstate.Storage, error){
+	panic("nyi")
 }
 
 func (s *StateWrapper) Signer() *keyStore {
@@ -126,7 +128,7 @@ func (s *keyStore) newAddress() (vstate.Address, error) {
 
 	ki := &types.KeyInfo{
 		PrivateKey: prv,
-		Curve:      "secp256k1",
+		CryptSystem:      "secp256k1",
 	}
 	addr, err := ki.Address()
 	if err != nil {
@@ -137,12 +139,13 @@ func (s *keyStore) newAddress() (vstate.Address, error) {
 	return vstate.Address(addr.Bytes()), nil
 }
 
+// FIXME this only signes secp, need to suuport bls too.
 func (as *keyStore) SignBytes(data []byte, addr address.Address) (types.Signature, error) {
 	ki, ok := as.keys[addr]
 	if !ok {
 		return types.Signature{}, fmt.Errorf("unknown address %v", addr)
 	}
-	return wutil.Sign(ki.Key(), data)
+	return crypto.SignSecp(ki.Key(), data)
 }
 
 //
@@ -167,4 +170,34 @@ func (a *actorWrapper) Nonce() uint64 {
 
 func (a *actorWrapper) Balance() vstate.AttoFIL {
 	return a.Actor.Balance.AsBigInt()
+}
+
+func fromActorCode(code vstate.ActorCodeID) cid.Cid {
+	switch code {
+	case vstate.AccountActorCodeCid:
+		return types.AccountActorCodeCid
+	case vstate.StorageMinerCodeCid:
+		return types.StorageMarketActorCodeCid
+	case vstate.MultisigActorCodeCid:
+		panic("nyi")
+	case vstate.PaymentChannelActorCodeCid:
+		return types.PaymentBrokerActorCodeCid
+	default:
+		panic(fmt.Errorf("unknown actor code: %v", code))
+	}
+}
+
+func fromSingletonAddress(addr vstate.SingletonActorID) vstate.Address{
+	switch addr {
+	case vstate.InitAddress:
+		return vstate.Address(address.InitAddress.Bytes())
+	case vstate.NetworkAddress:
+		return vstate.Address(address.NetworkAddress.Bytes())
+	case vstate.StorageMarketAddress:
+		return vstate.Address(address.StorageMarketAddress.Bytes())
+	case vstate.BurntFundsAddress:
+		return vstate.Address(address.BurntFundsAddress.Bytes())
+	default:
+		panic(fmt.Errorf("unknown singleton actor address: %v", addr))
+	}
 }

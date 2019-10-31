@@ -8,7 +8,6 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Microsoft/go-winio v0.4.12 // indirect
 	github.com/Workiva/go-datastructures v1.0.50
-	github.com/coreos/etcd v3.3.10+incompatible
 	github.com/cskr/pubsub v1.0.2
 	github.com/dgraph-io/badger v1.6.0 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
@@ -21,10 +20,8 @@ require (
 	github.com/filecoin-project/go-leb128 v0.0.0-20190212224330-8d79a5489543
 	github.com/filecoin-project/go-sectorbuilder v0.0.0-20190801004428-e75bc9b0aaea
 	github.com/go-critic/go-critic v0.0.0-20181204210945-ee9bf5809ead // indirect
-	github.com/gogo/protobuf v1.3.0 // indirect
 	github.com/golang/mock v1.3.1 // indirect
 	github.com/golangci/golangci-lint v1.17.1
-	github.com/google/go-cmp v0.3.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gorilla/mux v1.7.0 // indirect
@@ -64,14 +61,12 @@ require (
 	github.com/libp2p/go-libp2p-circuit v0.1.3
 	github.com/libp2p/go-libp2p-core v0.2.4-0.20191022172111-a5bf2487c11d
 	github.com/libp2p/go-libp2p-kad-dht v0.1.1
-	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-libp2p-peerstore v0.1.3
 	github.com/libp2p/go-libp2p-pubsub v0.1.2-0.20191018084750-aa9a8756d47b
 	github.com/libp2p/go-libp2p-swarm v0.2.2
 	github.com/libp2p/go-stream-muxer v0.0.1
 	github.com/magiconair/properties v1.8.1
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
-	github.com/minio/sha256-simd v0.1.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
 	github.com/multiformats/go-multiaddr v0.1.1
