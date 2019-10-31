@@ -114,7 +114,7 @@ func TestExpected_RunStateTransition_validateMining(t *testing.T) {
 
 		emptyBLSMessages, emptyMessages := emptyMessages(len(blocks))
 
-		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot)
+		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot, blocks[0].MessageReceipts)
 		assert.NoError(t, err)
 	})
 
@@ -135,7 +135,7 @@ func TestExpected_RunStateTransition_validateMining(t *testing.T) {
 
 		emptyBLSMessages, emptyMessages := emptyMessages(len(blocks))
 
-		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, genesisBlock.StateRoot)
+		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, genesisBlock.StateRoot, genesisBlock.MessageReceipts)
 		assert.EqualError(t, err, "block author did not win election")
 	})
 
@@ -164,7 +164,7 @@ func TestExpected_RunStateTransition_validateMining(t *testing.T) {
 		msg := types.NewUnsignedMessage(blsAddr, address.TestAddress2, 0, types.NewAttoFILFromFIL(0), "", []byte{})
 		blsMessages[0] = append(blsMessages[0], msg)
 
-		_, _, err = exp.RunStateTransition(ctx, tipSet, blsMessages, emptyMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot)
+		_, _, err = exp.RunStateTransition(ctx, tipSet, blsMessages, emptyMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot, blocks[0].MessageReceipts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "block BLS signature does not validate")
 	})
@@ -198,7 +198,7 @@ func TestExpected_RunStateTransition_validateMining(t *testing.T) {
 		}
 		secpMessages[0] = append(secpMessages[0], smsg)
 
-		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, secpMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot)
+		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, secpMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot, blocks[0].MessageReceipts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "secp message signature invalid")
 	})
@@ -221,7 +221,7 @@ func TestExpected_RunStateTransition_validateMining(t *testing.T) {
 
 		emptyBLSMessages, emptyMessages := emptyMessages(len(blocks))
 
-		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, genesisBlock.StateRoot)
+		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, genesisBlock.StateRoot, genesisBlock.MessageReceipts)
 		require.NotNil(t, err)
 		assert.Contains(t, err.Error(), "invalid ticket")
 	})
@@ -243,7 +243,7 @@ func TestExpected_RunStateTransition_validateMining(t *testing.T) {
 
 		emptyBLSMessages, emptyMessages := emptyMessages(len(blocks))
 
-		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot)
+		_, _, err = exp.RunStateTransition(ctx, tipSet, emptyBLSMessages, emptyMessages, []block.TipSet{pTipSet}, 0, blocks[0].StateRoot, blocks[0].MessageReceipts)
 		assert.EqualError(t, err, "block signature invalid")
 	})
 }

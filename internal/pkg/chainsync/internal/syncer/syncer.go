@@ -83,6 +83,7 @@ type ChainReaderWriter interface {
 	GetHead() block.TipSetKey
 	GetTipSet(tsKey block.TipSetKey) (block.TipSet, error)
 	GetTipSetStateRoot(tsKey block.TipSetKey) (cid.Cid, error)
+	GetTipSetReceiptsRoot(tsKey block.TipSetKey) (cid.Cid, error)
 	HasTipSetAndState(ctx context.Context, tsKey block.TipSetKey) bool
 	PutTipSetMetadata(ctx context.Context, tsas *chain.TipSetMetadata) error
 	SetHead(ctx context.Context, s block.TipSet) error
@@ -103,7 +104,7 @@ type ChainSelector interface {
 type SemanticValidator interface {
 	// RunStateTransition returns the state root CID resulting from applying the input ts to the
 	// prior `stateRoot`.  It returns an error if the transition is invalid.
-	RunStateTransition(ctx context.Context, ts block.TipSet, blsMessages [][]*types.UnsignedMessage, secpMessages [][]*types.SignedMessage, ancestors []block.TipSet, parentWeight uint64, stateID cid.Cid) (cid.Cid, []*types.MessageReceipt, error)
+	RunStateTransition(ctx context.Context, ts block.TipSet, blsMessages [][]*types.UnsignedMessage, secpMessages [][]*types.SignedMessage, ancestors []block.TipSet, parentWeight uint64, stateID cid.Cid, rcid cid.Cid) (cid.Cid, []*types.MessageReceipt, error)
 }
 
 var reorgCnt *metrics.Int64Counter
@@ -167,7 +168,7 @@ func (syncer *Syncer) syncOne(ctx context.Context, grandParent, parent, next blo
 	stopwatch := syncOneTimer.Start(ctx)
 	defer stopwatch.Stop(ctx)
 
-	// Lookup parent state root. It is guaranteed by the syncer that it is in the chainStore.
+	// Lookup parent state and receipt root. It is guaranteed by the syncer that it is in the chainStore.
 	stateRoot, err := syncer.chainStore.GetTipSetStateRoot(parent.Key())
 	if err != nil {
 		return err
@@ -204,13 +205,21 @@ func (syncer *Syncer) syncOne(ctx context.Context, grandParent, parent, next blo
 		return err
 	}
 
-	// Run a state transition to validate the tipset and compute
-	// a new state to add to the store.
-	root, receipts, err := syncer.stateEvaluator.RunStateTransition(ctx, next, nextBlsMessages, nextSecpMessages, ancestors, parentWeight, stateRoot)
+	parentReceiptRoot, err := syncer.chainStore.GetTipSetReceiptsRoot(parent.Key())
 	if err != nil {
 		return err
 	}
 
+	// Run a state transition to validate the tipset and compute
+	// a new state to add to the store.
+	root, receipts, err := syncer.stateEvaluator.RunStateTransition(ctx, next, nextBlsMessages, nextSecpMessages, ancestors, parentWeight, stateRoot, parentReceiptRoot)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range receipts {
+		logSyncer.Infof("Storing receipt %v", r)
+	}
 	receiptCid, err := syncer.messageProvider.StoreReceipts(ctx, receipts)
 	if err != nil {
 		return errors.Wrapf(err, "could not store message rerceipts for tip set %s", next.String())

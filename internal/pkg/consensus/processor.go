@@ -165,9 +165,6 @@ func (p *DefaultProcessor) ProcessTipSet(ctx context.Context, st state.Tree, vms
 	res.Failures = make(map[cid.Cid]struct{})
 	res.Successes = make(map[cid.Cid]struct{})
 
-	// TODO: this can be made slightly more efficient by reusing the validation
-	// transition of the first validated block (change would reach here and
-	// consensus functions).
 	dedupedMessages, err := DeduppedMessages(tsMessages)
 
 	for i := 0; i < ts.Len(); i++ {
