@@ -1,3 +1,4 @@
+{{ if .Values.MinerWorkflow.Enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -15,7 +16,11 @@ spec:
           command: [
             "network-deployment.test",
             "-test.run=TestMinerWorkflow",
+            {{- if .Values.Network }}
+            "-deployment={{ .Values.Network }}",
+            {{- else }}
             "-deployment={{ .Release.Namespace }}",
+            {{- end }}
             "-binary-path=/usr/local/bin/go-filecoin",
           ]
           volumeMounts:
@@ -31,3 +36,4 @@ spec:
       - name: filecoin-parameter-cache
         hostPath:
           path: "{{ .Values.ProofParamsDir }}"
+{{ end }}

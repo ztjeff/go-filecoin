@@ -1,3 +1,4 @@
+{{ if .Values.Genesis.Enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -30,7 +31,7 @@ metadata:
   labels:
     app: filecoin-genesis
   annotations:
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "{{.Values.ALB.ACM}}"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "{{.Values.ACM}}"
     external-dns.alpha.kubernetes.io/hostname: faucet-{{.Release.Namespace}}.kittyhawk.wtf
     external-dns.alpha.kubernetes.io/alias: "true"
     external-dns.alpha.kubernetes.io/ttl: "60"
@@ -52,13 +53,18 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
 {{- $relnamespace := .Release.Namespace }}
+{{- $network := .Values.Network }}
   filecoin-genesis-0.json: |
     {
       "WorkingDir": "/var/filecoin",
       "GenesisCarFile":"/opt/filecoin/genesis.car",
       "PeerkeyFile": "/opt/filecoin/peer0.key",
       "AutoSealInterval": 120,
+      {{- if $network }}
+      "Network": "{{ $network }}",
+      {{- else }}
       "Network": "{{ $relnamespace }}",
+      {{- end }}
       "BlockTime": "30s",
       "LogJSON": "1",
       "LogLevel":"5",
@@ -167,6 +173,7 @@ spec:
               mountPath: /opt/filecoin-proof-parameters
             - name: config-volume
               mountPath: /opt/filecoin-deploy
+        {{- if .Values.Bootstrap.Enabled }}
         - name: bootstrap-ready-check
           image: "giantswarm/tiny-tools"
           imagePullPolicy: Always
@@ -176,6 +183,7 @@ spec:
             "-c",
             "curl -s http://filecoin-bootstrappers-{{ $lastBootstrapOrd }}-0.filecoin-bootstrappers-{{ $lastBootstrapOrd }}.{{ .Release.Namespace }}.svc.cluster.local:3453/api/id"
           ]
+        {{- end }}
       securityContext:
         runAsUser: 1000
         runAsGroup: 100
@@ -202,3 +210,4 @@ spec:
       resources:
         requests:
           storage: 20Gi
+{{ end }}

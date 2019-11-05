@@ -1,5 +1,5 @@
 {{- $this := . -}}
-
+{{ if .Values.Bootstrap.Enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,6 +7,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
 {{- $relnamespace := .Release.Namespace }}
+{{- $network := .Values.Network }}
 {{- range $k, $v := until (atoi (quote .Values.Bootstrap.Replicas) | default 3) }}
   {{- $peerIndex := add $v 1 }}
   filecoin-bootstrappers-{{$v}}-0.json: |
@@ -15,7 +16,11 @@ data:
       "GenesisCarFile":"/opt/filecoin/genesis.car",
       "PeerkeyFile": "/opt/filecoin/peer{{$peerIndex}}.key",
       "AutoSealInterval": 120,
+      {{- if $network }}
+      "Network": "{{ $network }}",
+      {{- else }}
       "Network": "{{ $relnamespace }}",
+      {{- end }}
       "BlockTime": "30s",
       "LogJSON": "1",
       "LogLevel":"5",
@@ -191,4 +196,5 @@ spec:
         requests:
           storage: 20Gi
 
+{{ end }}
 {{ end }}
