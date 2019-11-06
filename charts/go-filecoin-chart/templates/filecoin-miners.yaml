@@ -26,7 +26,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
 {{- $relnamespace := .Release.Namespace }}
-{{- $faucetURL := .Values.FaucetURL }}
+{{- $faucetURL := .Values.Miner.FaucetURL }}
 {{- $network := .Values.Network }}
 {{- range $k, $v := until (atoi (printf "%d" (int64 .Values.Miner.Replicas))) }}
   filecoin-miners-{{$v}}.json: |
@@ -34,7 +34,7 @@ data:
       "WorkingDir": "/var/filecoin",
       "GenesisCarFile":"/opt/filecoin/genesis.car",
       {{- if $faucetURL }}
-      "FaucetURL": "{{ $faucetURL }}"
+      "FaucetURL": "{{ $faucetURL }}",
       {{- else }}
       "FaucetURL": "http://filecoin-genesis-0.filecoin-genesis.{{ $relnamespace }}.svc.cluster.local:9797/tap",
       {{- end }}
