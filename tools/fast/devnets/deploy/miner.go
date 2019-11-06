@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-ipfs-files"
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-filecoin/address"
@@ -163,12 +165,39 @@ func (p *MinerProfile) Post() error {
 			return fmt.Errorf("Failed to parse sector size %s", p.config.SectorSize)
 		}
 
+		pparams, err := miner.Protocol(ctx)
+		if err != nil {
+			return err
+		}
+
+		maxPieceSize := types.NewBytesAmount(0)
+		for _, info := range pparams.SupportedSectors {
+			if sectorSize.Equal(info.Size) {
+				maxPieceSize = info.MaxPieceSize
+				break
+			}
+		}
+
+		if maxPieceSize.IsZero() {
+			return fmt.Errorf("Could not find max piece size")
+		}
+
 		_, err = series.CreateStorageMinerWithAsk(ctx, miner, collateral, price, expiry, sectorSize)
 		if err != nil {
 			return err
 		}
 
 		if err := miner.MiningStart(ctx); err != nil {
+			return err
+		}
+
+		dataReader := io.LimitReader(rand.Reader, int64(maxPieceSize.Uint64()))
+		_, err = miner.AddPiece(ctx, files.NewReaderFile(dataReader))
+		if err != nil {
+			return err
+		}
+
+		if err := miner.SealNow(ctx); err != nil {
 			return err
 		}
 	} else {
