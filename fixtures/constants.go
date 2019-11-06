@@ -127,18 +127,11 @@ const (
 	userFilecoinBootstrap4 string = "/dns4/user.kittyhawk.wtf/tcp/9004/ipfs/QmZRnwmCjyNHgeNDiyT8mXRtGhP6uSzgHtrozc42crmVbg"
 )
 
-// user devnet addrs
+// avis devnet addrs
 const (
-	alphaStagingFilecoinBootstrap0 string = "/dns4/bootstrappers-0.alpha-staging.kittyhawk.wtf/tcp/30600/ipfs/QmcnXbqvMEwqG4RmWVgRggbLM4aNtu1BZ123qJDRpK6AqA"
-	alphaStagingFilecoinBootstrap1 string = "/dns4/bootstrappers-1.alpha-staging.kittyhawk.wtf/tcp/30601/ipfs/QmXeMDTYcUm5qgASyRYU52QNc8rvjMY5eHgTGVmF6C2rn5"
-	alphaStagingFilecoinBootstrap2 string = "/dns4/bootstrappers-2.alpha-staging.kittyhawk.wtf/tcp/30602/ipfs/QmbKWFbYgV7QRUNMQsQoUDJDVgaV7nm67LmrxkUTTKJDec"
-)
-
-// person devnet addrs
-const (
-	personFilecoinBootstrap0 string = "/dns4/bootstrappers-0.person.kittyhawk.wtf/tcp/30800/ipfs/QmQAADELy81qbbLPK5C3CM2W57tTr7sYjPN9SYy9t27QgM"
-	personFilecoinBootstrap1 string = "/dns4/bootstrappers-1.person.kittyhawk.wtf/tcp/30801/ipfs/QmUSN4ei6QyEzHPhg3DAmxVuNX3s49JZchDYsboTYTL3tY"
-	personFilecoinBootstrap2 string = "/dns4/bootstrappers-2.person.kittyhawk.wtf/tcp/30802/ipfs/QmQfcCtcYNbde22Fx2D7gYnsiiaJxLcvZfCfuPpVZNbWvA"
+	avisFilecoinBootstrap0 string = "/dns4/bootstrappers-0.avis.kittyhawk.wtf/tcp/30800/ipfs/Qmaa4rsMcVdKAFyx5Vnrj5vGhFdKweT2pBrNNHu1oJtL2R"
+	avisFilecoinBootstrap1 string = "/dns4/bootstrappers-1.avis.kittyhawk.wtf/tcp/30801/ipfs/QmRNc5KerKSstmzCo4pt55Zde2Zose56vFPGnskxdGFNs6"
+	avisFilecoinBootstrap2 string = "/dns4/bootstrappers-2.avis.kittyhawk.wtf/tcp/30802/ipfs/Qmchq49vebLecxir6Fn9cN86gG456FyPBMvysCRRVm4QKu"
 )
 
 // DevnetStagingBootstrapAddrs are the dns multiaddrs for the nodes of the filecoin
@@ -171,19 +164,10 @@ var DevnetUserBootstrapAddrs = []string{
 	userFilecoinBootstrap4,
 }
 
-// DevnetAlphaStagingBootstrapAddrs are the dns multiaddrs for the nodes of the filecoin
-// alpha staging devnet
-var DevnetAlphaStagingBootstrapAddrs = []string{
-	alphaStagingFilecoinBootstrap0,
-	alphaStagingFilecoinBootstrap1,
-	alphaStagingFilecoinBootstrap2,
-}
-
-// DevnetAlphaStagingBootstrapAddrs are the dns multiaddrs for the nodes of the filecoin
-
-// alpha staging devnet
-var DevnetPersonBootstrapAddrs = []string{
-	personFilecoinBootstrap0,
-	personFilecoinBootstrap1,
-	personFilecoinBootstrap2,
+// DevnetUserBootstrapAddrs are the dns multiaddrs for the nodes of the filecoin
+// avis devnet
+var DevnetAvisBootstrapAddrs = []string{
+	avisFilecoinBootstrap0,
+	avisFilecoinBootstrap1,
+	avisFilecoinBootstrap2,
 }
