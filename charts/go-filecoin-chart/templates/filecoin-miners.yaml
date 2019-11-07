@@ -48,8 +48,8 @@ data:
       "LogJSON": "1",
       "LogLevel":"5",
       "Collateral": 10,
-      "AskPrice": "0.000000001",
-      "AskExpiry": 100,
+      "AskPrice": "0.0000000000000001",
+      "AskExpiry": 172800,
       "SectorSize": "268435456"
     }
 {{ end }}
