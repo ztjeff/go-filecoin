@@ -4,7 +4,7 @@ Miner:
   Enabled: true
   Replicas: 10
   StorageSize: 200Gi
-  FaucetURL: "https://faucet-avis.kittyhawk.wtf/tap"
+  FaucetURL: "http://filecoin-genesis-0.filecoin-genesis.avis.svc.cluster.local:9797/tap"
 BlockExplorer:
   Enabled: false
 Sprinkler:
