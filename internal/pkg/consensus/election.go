@@ -35,8 +35,7 @@ func (em ElectionMachine) GenerateCandidates(poStRand []byte, sectorInfos sector
 // GeneratePoSt creates a PoSt proof over the input PoSt candidates.  Should
 // only be called on winning candidates.
 func (em ElectionMachine) GeneratePoSt(allSectorInfos sector.SortedSectorInfo, challengeSeed []byte, winners []*proofs.EPoStCandidate, ep *proofs.ElectionPoster) ([]byte, error) {
-	winnerSectorInfos := filterSectorInfosByCandidates(allSectorInfos, winners)
-	return ep.ComputeElectionPoSt(winnerSectorInfos, challengeSeed, winners)
+	return ep.ComputeElectionPoSt(allSectorInfos, challengeSeed, winners)
 }
 
 // VerifyPoStRandomness verifies that the PoSt randomness is the result of the
@@ -75,26 +74,12 @@ func (em ElectionMachine) VerifyPoSt(ctx context.Context, ep *proofs.ElectionPos
 	return ep.VerifyElectionPost(
 		ctx,
 		sectorSize,
-		filterSectorInfosByCandidates(allSectorInfos, candidates),
+		allSectorInfos,
 		challengeSeed,
 		proof,
 		candidates,
 		proverID,
 	)
-}
-
-func filterSectorInfosByCandidates(allSectorInfos sector.SortedSectorInfo, candidates []*proofs.EPoStCandidate) sector.SortedSectorInfo {
-	candidateSectorID := make(map[uint64]struct{})
-	for _, candidate := range candidates {
-		candidateSectorID[candidate.SectorID] = struct{}{}
-	}
-	var candidateSectorInfos []sector.SectorInfo
-	for _, si := range allSectorInfos.Values() {
-		if _, ok := candidateSectorID[si.SectorID]; ok {
-			candidateSectorInfos = append(candidateSectorInfos, si)
-		}
-	}
-	return sector.NewSortedSectorInfo(candidateSectorInfos...)
 }
 
 // TicketMachine uses a VRF and VDF to generate deterministic, unpredictable
