@@ -224,8 +224,8 @@ func buildHost(ctx context.Context, config networkConfig, libP2pOpts []libp2p.Op
 	}
 	return libp2p.New(
 		ctx,
-		libp2p.EnableAutoRelay(),
-		libp2p.Routing(makeDHTRightType),
+	//	libp2p.EnableAutoRelay(),
+	//	libp2p.Routing(makeDHTRightType),
 		libp2p.ChainOptions(libP2pOpts...),
 	)
 }

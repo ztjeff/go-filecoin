@@ -24,6 +24,7 @@ import (
 // var base = "/tmp/encoding_gen"
 var base = "."
 
+// TODO all the structures that we want are here
 func main() {
 	logging.SetAllLoggers(logging.LevelDebug)
 

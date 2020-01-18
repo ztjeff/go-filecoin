@@ -108,6 +108,7 @@ func (encoder *IpldCborEncoder) EncodeMap(obj interface{}) error {
 }
 
 // EncodeStruct encodes a struct.
+// TODO make bytes with no tags
 func (encoder *IpldCborEncoder) EncodeStruct(obj interface{}) error {
 	return encoder.encodeCbor(obj)
 }
@@ -150,6 +151,8 @@ func (decoder *IpldCborDecoder) DecodeMap(obj interface{}) error {
 }
 
 // DecodeStruct encodes a uint64.
+// TODO take without tags
+// double check the forma
 func (decoder *IpldCborDecoder) DecodeStruct(obj interface{}) error {
 	return decoder.decodeCbor(obj)
 }

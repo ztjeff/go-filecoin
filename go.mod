@@ -61,12 +61,11 @@ require (
 	github.com/libp2p/go-flow-metrics v0.0.2 // indirect
 	github.com/libp2p/go-libp2p v0.4.1-0.20191006140250-5f60501a04d5
 	github.com/libp2p/go-libp2p-autonat-svc v0.1.0
-	github.com/libp2p/go-libp2p-circuit v0.1.3
+	github.com/libp2p/go-libp2p-circuit v0.1.4
 	github.com/libp2p/go-libp2p-core v0.2.4
 	github.com/libp2p/go-libp2p-kad-dht v0.1.1
 	github.com/libp2p/go-libp2p-peerstore v0.1.4
 	github.com/libp2p/go-libp2p-pubsub v0.2.1
-	github.com/libp2p/go-libp2p-secio v0.2.1 // indirect
 	github.com/libp2p/go-libp2p-swarm v0.2.2
 	github.com/libp2p/go-libp2p-testing v0.1.1 // indirect
 	github.com/libp2p/go-stream-muxer v0.0.1
@@ -119,6 +118,12 @@ require (
 	gopkg.in/yaml.v2 v2.2.5 // indirect
 	gotest.tools v2.2.0+incompatible
 )
+
+replace github.com/libp2p/go-yamux => /Users/zenground0/Ground/go/src/github.com/libp2p/go-yamux
+
+replace github.com/libp2p/go-libp2p => /Users/zenground0/Ground/go/src/github.com/libp2p/go-libp2p
+
+replace github.com/libp2p/go-libp2p-swarm => /Users/zenground0/Ground/go/src/github.com/libp2p/go-libp2p-swarm
 
 replace github.com/filecoin-project/go-bls-sigs => ./vendors/go-bls-sigs
 

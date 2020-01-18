@@ -105,7 +105,7 @@ type ConnectionResult struct {
 // Connect connects to peers at the given addresses. Does not retry.
 func (network *Network) Connect(ctx context.Context, addrs []string) (<-chan ConnectionResult, error) {
 	outCh := make(chan ConnectionResult)
-
+	fmt.Printf("alright here we go\n")
 	swrm, ok := network.host.Network().(*swarm.Swarm)
 	if !ok {
 		return nil, fmt.Errorf("peerhost network was not a swarm")

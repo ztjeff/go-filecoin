@@ -30,6 +30,7 @@ func NewMsgReader(r io.Reader) *MsgReader {
 // ReadMsg reads a length delimited cbor message into the given object
 func (mr *MsgReader) ReadMsg(i interface{}) error {
 	l, err := binary.ReadUvarint(mr.br)
+	fmt.Printf("l: %d\n", l)
 	if err != nil {
 		return err
 	}
@@ -44,6 +45,7 @@ func (mr *MsgReader) ReadMsg(i interface{}) error {
 	buf := make([]byte, l)
 	_, err = io.ReadFull(mr.br, buf)
 	if err != nil {
+		fmt.Printf("this guy %s\n", err)
 		return err
 	}
 

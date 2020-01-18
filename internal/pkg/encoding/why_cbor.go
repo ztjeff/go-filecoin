@@ -30,8 +30,8 @@ func (encoder *WhyCborEncoder) EncodeObject(obj Encodable) error {
 	return cborobj.MarshalCBOR(encoder.b)
 }
 
-// IntoBytes returns the encoded bytes.
-func (encoder WhyCborEncoder) IntoBytes() []byte {
+// Bytes returns the encoded bytes.
+func (encoder WhyCborEncoder) Bytes() []byte {
 	return encoder.b.Bytes()
 }
 

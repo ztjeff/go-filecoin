@@ -23,6 +23,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/internal/pkg/clock"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/config"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/consensus"
+	"github.com/filecoin-project/go-filecoin/internal/pkg/encoding"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/message"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/metrics"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/mining"
@@ -110,6 +111,11 @@ func (node *Node) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	bs, err := encoding.Encode(node.chain.ChainReader.GenesisCid())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("genesis cid bytes: %x\n", bs)
 
 	// Only set these up if there is a miner configured.
 	if _, err := node.MiningAddress(); err == nil {
