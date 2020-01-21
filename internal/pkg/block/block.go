@@ -29,8 +29,10 @@ func init() {
 	fmt.Printf("after: %v\n", after)
 }
 
-// Converts any struct value to an []interface{}{} value where the ith slice
-// element is the ith public field.
+type BlockTuple []interface{}
+
+// StructToTuple converts any struct value to an []interface{}{} value where
+// the ith slice element is the ith public field.
 func StructToTuple(val reflect.Value) (reflect.Value, error) {
 	if val.Kind() != reflect.Struct {
 		return reflect.ValueOf(nil), fmt.Errorf("struct to tuple expects struct")
@@ -46,17 +48,18 @@ func StructToTuple(val reflect.Value) (reflect.Value, error) {
 	return reflect.ValueOf(tuple), nil
 }
 
-// Converts an []interface{}{} value to a struct value where the ith public 
-// field is set to the ith slice element.
+// TupleToStruct Converts an []interface{}{} value to a struct value where the
+// ith public field is set to the ith slice element.
 func TupleToStruct(tupleVal reflect.Value, structType reflect.Type) (reflect.Value, error) {
+	fmt.Printf("the tuple: %v\n", tupleVal)
 	structPtrVal := reflect.New(structType)
 	structVal := structPtrVal.Elem()
 	if structVal.Kind() != reflect.Struct {
 		return reflect.ValueOf(nil), fmt.Errorf("TupleToStruct expects struct type")
 	}
-	if tupleVal.Type() != reflect.TypeOf([]interface{}{}) {
+	if tupleVal.Kind() != reflect.Slice {
+		fmt.Printf("TupleToStruct expects slice kind not: %v\n", tupleVal.Kind())
 		return reflect.ValueOf(nil), fmt.Errorf("TupleToStruct expects []interface{} value")
-
 	}
 	n := structVal.NumField()
 	j := 0 // total tuple values consumed
@@ -74,10 +77,10 @@ func TupleToStruct(tupleVal reflect.Value, structType reflect.Type) (reflect.Val
 var blockAtlasEntry = atlas.BuildEntry(Block{}).Transform().
 	TransformMarshal(func(liveForm reflect.Value) (serialForm reflect.Value, err error) {
 		return StructToTuple(liveForm)
-	}, reflect.TypeOf([]interface{}{})).
+	}, reflect.TypeOf(BlockTuple{})).
 	TransformUnmarshal(func(serialForm reflect.Value) (liveForm reflect.Value, err error) {
 		return TupleToStruct(serialForm, reflect.TypeOf(Block{}))
-	}, reflect.TypeOf(Block{})).
+	}, reflect.TypeOf(BlockTuple{})).
 	Complete()
 
 // Block is a block in the blockchain.
