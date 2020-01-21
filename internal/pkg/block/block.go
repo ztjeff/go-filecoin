@@ -3,15 +3,82 @@ package block
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/filecoin-project/go-filecoin/internal/pkg/encoding"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/types"
 	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	node "github.com/ipfs/go-ipld-format"
+	"github.com/polydawn/refmt/obj/atlas"
 
 	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/address"
 )
+
+func init() {
+	before := Block{Height: types.Uint64(666)}
+	fmt.Printf("before: %v\n", before)
+	is, err := StructToTuple(reflect.ValueOf(before))
+	if err != nil {
+		panic(err)
+	}
+	after, err := TupleToStruct(is, reflect.TypeOf(Block{}))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("after: %v\n", after)
+}
+
+// Converts any struct value to an []interface{}{} value where the ith slice
+// element is the ith public field.
+func StructToTuple(val reflect.Value) (reflect.Value, error) {
+	if val.Kind() != reflect.Struct {
+		return reflect.ValueOf(nil), fmt.Errorf("struct to tuple expects struct")
+	}
+	n := val.NumField()
+	tuple := make([]interface{}, 0)
+	for i := 0; i < n; i++ {
+		f := val.Field(i)
+		if f.CanInterface() { // only exported fields
+			tuple = append(tuple, f.Interface())
+		}
+	}
+	return reflect.ValueOf(tuple), nil
+}
+
+// Converts an []interface{}{} value to a struct value where the ith public 
+// field is set to the ith slice element.
+func TupleToStruct(tupleVal reflect.Value, structType reflect.Type) (reflect.Value, error) {
+	structPtrVal := reflect.New(structType)
+	structVal := structPtrVal.Elem()
+	if structVal.Kind() != reflect.Struct {
+		return reflect.ValueOf(nil), fmt.Errorf("TupleToStruct expects struct type")
+	}
+	if tupleVal.Type() != reflect.TypeOf([]interface{}{}) {
+		return reflect.ValueOf(nil), fmt.Errorf("TupleToStruct expects []interface{} value")
+
+	}
+	n := structVal.NumField()
+	j := 0 // total tuple values consumed
+	for i := 0; i < n; i++ {
+		f := structVal.Field(i)
+		if f.CanInterface() { // only exported fields
+			tupleI := tupleVal.Index(j)
+			f.Set(tupleI.Elem())
+			j++
+		}
+	}
+	return structVal, nil
+}
+
+var blockAtlasEntry = atlas.BuildEntry(Block{}).Transform().
+	TransformMarshal(func(liveForm reflect.Value) (serialForm reflect.Value, err error) {
+		return StructToTuple(liveForm)
+	}, reflect.TypeOf([]interface{}{})).
+	TransformUnmarshal(func(serialForm reflect.Value) (liveForm reflect.Value, err error) {
+		return TupleToStruct(serialForm, reflect.TypeOf(Block{}))
+	}, reflect.TypeOf(Block{})).
+	Complete()
 
 // Block is a block in the blockchain.
 type Block struct {
@@ -119,14 +186,6 @@ func DecodeBlock(b []byte) (*Block, error) {
 	out.cachedBytes = b
 
 	return &out, nil
-}
-
-// Score returns the score of this block. Naively this will just return the
-// height. But in the future this will return a more sophisticated metric to be
-// used in the fork choice rule
-// Choosing height as the score gives us the same consensus rules as bitcoin
-func (b *Block) Score() uint64 {
-	return uint64(b.Height)
 }
 
 // Equals returns true if the Block is equal to other.

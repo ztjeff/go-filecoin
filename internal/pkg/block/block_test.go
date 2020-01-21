@@ -3,10 +3,9 @@ package block_test
 import (
 	"bytes"
 	"encoding/json"
-	"math/rand"
+	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/filecoin-project/go-filecoin/internal/pkg/encoding"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/types"
@@ -78,6 +77,9 @@ func TestTriangleEncoding(t *testing.T) {
 			BLSAggregateSig: []byte{0x3},
 			EPoStInfo:       postInfo,
 		}
+		bs, err := encoding.Encode(b)
+		require.NoError(t, err)
+		fmt.Printf("block bytes: %x\n", bs)
 		s := reflect.TypeOf(*b)
 		// This check is here to request that you add a non-zero value for new fields
 		// to the above (and update the field count below).
@@ -98,23 +100,6 @@ func TestBlockString(t *testing.T) {
 
 	got := b.String()
 	assert.Contains(t, got, cid.String())
-}
-
-func TestBlockScore(t *testing.T) {
-	tf.UnitTest(t)
-
-	source := rand.NewSource(time.Now().UnixNano())
-
-	t.Run("block score equals block height", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
-			n := uint64(source.Int63())
-
-			var b blk.Block
-			b.Height = types.Uint64(n)
-
-			assert.Equal(t, uint64(b.Height), b.Score(), "block height: %d - block score %d", b.Height, b.Score())
-		}
-	})
 }
 
 func TestDecodeBlock(t *testing.T) {

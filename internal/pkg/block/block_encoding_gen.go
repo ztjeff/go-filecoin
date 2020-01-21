@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	encoding.RegisterIpldCborType(Block{})
+	encoding.RegisterIpldCborType(blockAtlasEntry)
 	encoding.RegisterIpldCborType(Ticket{})
 }
 
