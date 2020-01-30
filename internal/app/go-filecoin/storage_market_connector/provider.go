@@ -12,12 +12,14 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared/tokenamount"
 	t2 "github.com/filecoin-project/go-fil-markets/shared/types"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	spaabi "github.com/filecoin-project/specs-actors/actors/abi"
+	spasm "github.com/filecoin-project/specs-actors/actors/builtin/storage_market"
+	spautil "github.com/filecoin-project/specs-actors/actors/util"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-filecoin/internal/app/go-filecoin/plumbing/msg"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/block"
-	"github.com/filecoin-project/go-filecoin/internal/pkg/chain"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/message"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/types"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/vm/abi"
@@ -27,9 +29,15 @@ import (
 
 type WorkerGetter func(ctx context.Context, minerAddr fcaddr.Address, baseKey block.TipSetKey) (fcaddr.Address, error)
 
+type chainReader interface {
+	Head() block.TipSetKey
+	GetTipSet(block.TipSetKey) (block.TipSet, error)
+	GetActorStateAt(ctx context.Context, tipKey block.TipSetKey, addr fcaddr.Address, out interface{}) error
+}
+
 type StorageProviderNodeConnector struct {
 	minerAddr    address.Address
-	chainStore   *chain.Store
+	chainStore   chainReader
 	outbox       *message.Outbox
 	waiter       *msg.Waiter
 	pieceManager piecemanager.PieceManager
@@ -37,7 +45,7 @@ type StorageProviderNodeConnector struct {
 	wallet       *wallet.Wallet
 }
 
-func NewStorageProviderNodeConnector(ma address.Address, cs *chain.Store, ob *message.Outbox, w *msg.Waiter, pm piecemanager.PieceManager, wg WorkerGetter, wlt *wallet.Wallet) *StorageProviderNodeConnector {
+func NewStorageProviderNodeConnector(ma address.Address, cs chainReader, ob *message.Outbox, w *msg.Waiter, pm piecemanager.PieceManager, wg WorkerGetter, wlt *wallet.Wallet) *StorageProviderNodeConnector {
 	return &StorageProviderNodeConnector{
 		minerAddr:    ma,
 		chainStore:   cs,
@@ -50,7 +58,7 @@ func NewStorageProviderNodeConnector(ma address.Address, cs *chain.Store, ob *me
 }
 
 func (s *StorageProviderNodeConnector) MostRecentStateId(ctx context.Context) (storagemarket.StateKey, error) {
-	key := s.chainStore.GetHead()
+	key := s.chainStore.Head()
 	ts, err := s.chainStore.GetTipSet(key)
 
 	if err != nil {
@@ -92,13 +100,37 @@ func (s *StorageProviderNodeConnector) AddFunds(ctx context.Context, addr addres
 }
 
 func (s *StorageProviderNodeConnector) EnsureFunds(ctx context.Context, addr address.Address, amount tokenamount.TokenAmount) error {
-	// TODO: how to read from StorageMarketActor state
-	panic("TODO: go-fil-markets integration")
+	var smState spasm.StorageMarketActorState
+	err := s.chainStore.GetActorStateAt(ctx, s.chainStore.Head(), fcaddr.StorageMarketAddress, &smState)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *StorageProviderNodeConnector) GetBalance(ctx context.Context, addr address.Address) (storagemarket.Balance, error) {
-	// TODO: how to read from StorageMarketActor state
-	panic("TODO: go-fil-markets integration")
+	var smState spasm.StorageMarketActorState
+	err := s.chainStore.GetActorStateAt(ctx, s.chainStore.Head(), fcaddr.StorageMarketAddress, &smState)
+	if err != nil {
+		return storagemarket.Balance{}, err
+	}
+
+	// TODO: Balance or similar should be an exported method on StorageMarketState. Do it ourselves for now.
+	available, ok := spautil.BalanceTable_GetEntry(smState.EscrowTable, addr)
+	if !ok {
+		available = spaabi.NewTokenAmount(0)
+	}
+
+	locked, ok := spautil.BalanceTable_GetEntry(smState.LockedReqTable, addr)
+	if !ok {
+		locked = spaabi.NewTokenAmount(0)
+	}
+
+	return storagemarket.Balance{
+		Available: tokenamount.FromInt(available.Int.Uint64()),
+		Locked:    tokenamount.FromInt(locked.Int.Uint64()),
+	}, nil
 }
 
 func (s *StorageProviderNodeConnector) PublishDeals(ctx context.Context, deal storagemarket.MinerDeal) (storagemarket.DealID, cid.Cid, error) {
@@ -191,7 +223,7 @@ func (s *StorageProviderNodeConnector) GetMinerWorker(ctx context.Context, miner
 		return address.Undef, err
 	}
 
-	fcworker, err := s.workerGetter(ctx, fcMiner, s.chainStore.GetHead())
+	fcworker, err := s.workerGetter(ctx, fcMiner, s.chainStore.Head())
 	if err != nil {
 		return address.Undef, err
 	}
