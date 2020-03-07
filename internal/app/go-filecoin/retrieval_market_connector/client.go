@@ -89,13 +89,12 @@ func (r *RetrievalClientConnector) CreatePaymentVoucher(ctx context.Context, pay
 	if err != nil {
 		return nil, err
 	}
-	ls := chinfo.State.LaneStates[lane]
 	v := paychActor.SignedVoucher{
 		TimeLockMin:     height + 1,
 		SecretPreimage:  nil, // optional
 		Extra:           nil, // optional
-		Lane:            ls.ID,
-		Nonce:           ls.Nonce + 1,
+		Lane:            lane,
+		Nonce:           lane, // TODO what is nonce from?
 		Amount:          amount,
 		MinSettleHeight: height + 1,
 		Merges:          nil,
@@ -107,7 +106,7 @@ func (r *RetrievalClientConnector) CreatePaymentVoucher(ctx context.Context, pay
 		return nil, err
 	}
 
-	sig, err := r.signer.SignBytes(buf.Bytes(), chinfo.State.From)
+	sig, err := r.signer.SignBytes(buf.Bytes(), chinfo.From)
 	if err != nil {
 		return nil, err
 	}

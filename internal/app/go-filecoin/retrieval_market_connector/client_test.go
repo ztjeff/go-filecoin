@@ -46,13 +46,16 @@ func TestRetrievalClientNodeConnector_GetOrCreatePaymentChannel(t *testing.T) {
 	ctx := context.Background()
 
 	paychAddr := specst.NewIDAddr(t, 101)
+	paychUniqueAddr := specst.NewActorAddr(t, "paych")
 
 	t.Run("if the payment channel does not exist", func(t *testing.T) {
 		t.Run("creates a new payment channel registry entry and posts createChannel message", func(t *testing.T) {
 			bs, cs, clientAddr, minerAddr, channelAmount := testSetup(ctx, t, abi.NewTokenAmount(1000))
 			rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
-			rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-				State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+			rmc.ExpectedPmtChans[paychUniqueAddr] = &paymentchannel.ChannelInfo{
+				IDAddr: paychAddr,
+				From:   clientAddr,
+				To:     minerAddr,
 			}
 
 			rcnc := NewRetrievalClientConnector(bs, cs, rmc, rmc)
@@ -70,7 +73,9 @@ func TestRetrievalClientNodeConnector_GetOrCreatePaymentChannel(t *testing.T) {
 			bs, cs, clientAddr, minerAddr, _ := testSetup(ctx, t, abi.NewTokenAmount(1000))
 			rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
 			rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-				State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+				IDAddr: paychAddr,
+				From:   clientAddr,
+				To:     minerAddr,
 			}
 			rcnc := NewRetrievalClientConnector(bs, cs, rmc, rmc)
 
@@ -83,7 +88,9 @@ func TestRetrievalClientNodeConnector_GetOrCreatePaymentChannel(t *testing.T) {
 			bs, cs, clientAddr, minerAddr, channelAmount := testSetup(ctx, t, abi.NewTokenAmount(1000))
 			rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
 			rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-				State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+				IDAddr: paychAddr,
+				From:   clientAddr,
+				To:     minerAddr,
 			}
 			rcnc := NewRetrievalClientConnector(bs, cs, rmc, rmc)
 			_, err := rcnc.GetOrCreatePaymentChannel(ctx, address.Undef, minerAddr, channelAmount)
@@ -100,7 +107,9 @@ func TestRetrievalClientNodeConnector_GetOrCreatePaymentChannel(t *testing.T) {
 			bs, cs, clientAddr, minerAddr, channelAmount := testSetup(ctx, t, abi.NewTokenAmount(1000))
 			rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
 			rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-				State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+				IDAddr: paychAddr,
+				From:   clientAddr,
+				To:     minerAddr,
 			}
 			rcnc := NewRetrievalClientConnector(bs, cs, rmc, rmc)
 			expectedChID, err := rcnc.GetOrCreatePaymentChannel(ctx, clientAddr, minerAddr, channelAmount)
@@ -134,7 +143,9 @@ func TestRetrievalClientNodeConnector_AllocateLane(t *testing.T) {
 	t.Run("Increments and returns lastLane val", func(t *testing.T) {
 		rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
 		rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-			State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+			IDAddr: paychAddr,
+			From:   clientAddr,
+			To:     minerAddr,
 		}
 
 		rcnc := NewRetrievalClientConnector(bs, cs, rmc, rmc)
@@ -151,14 +162,7 @@ func TestRetrievalClientNodeConnector_AllocateLane(t *testing.T) {
 		rmc.Verify()
 
 		chinfo := rmc.ExpectedPmtChans[paychAddr]
-		require.Len(t, chinfo.State.LaneStates, int(lane)+1)
-		actualLs := chinfo.State.LaneStates[lane]
-		expLs := paych.LaneState{
-			ID:       lane,
-			Redeemed: big.NewInt(0),
-			Nonce:    lane + 1,
-		}
-		assert.Equal(t, &expLs, actualLs)
+		require.Equal(t, chinfo.LastLane, lane)
 	})
 }
 
@@ -170,7 +174,9 @@ func TestRetrievalClientNodeConnector_CreatePaymentVoucher(t *testing.T) {
 	t.Run("Returns a voucher with a signature", func(t *testing.T) {
 		rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
 		rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-			State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+			IDAddr: paychAddr,
+			From:   clientAddr,
+			To:     minerAddr,
 		}
 		rmc.StubSignature(nil)
 
@@ -189,7 +195,7 @@ func TestRetrievalClientNodeConnector_CreatePaymentVoucher(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expectedAmt, voucher.Amount)
 		assert.Equal(t, lane, voucher.Lane)
-		assert.Equal(t, uint64(2), voucher.Nonce)
+		assert.Equal(t, uint64(1), voucher.Nonce)
 		assert.NotNil(t, voucher.Signature)
 	})
 
@@ -208,7 +214,9 @@ func TestRetrievalClientNodeConnector_CreatePaymentVoucher(t *testing.T) {
 		rmc := NewRetrievalMarketClientFakeAPI(t, big.NewInt(1000))
 		rmc.SigErr = errors.New("signature failure")
 		rmc.ExpectedPmtChans[paychAddr] = &paymentchannel.ChannelInfo{
-			State: &paych.State{From: clientAddr, To: minerAddr, ToSend: abi.NewTokenAmount(0)},
+			IDAddr: paychAddr,
+			From:   clientAddr,
+			To:     minerAddr,
 		}
 		rmc.StubSignature(errors.New("signature failure"))
 

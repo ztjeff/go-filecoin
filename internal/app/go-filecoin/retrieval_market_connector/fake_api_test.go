@@ -10,7 +10,6 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/paych"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/ipfs/go-cid"
@@ -89,15 +88,8 @@ func (rmFake *RetrievalMarketClientFakeAPI) AllocateLane(paychAddr address.Addre
 		return 0, xerrors.Errorf("payment channel does not exist: %s", paychAddr.String())
 	}
 	chinfo := rmFake.ExpectedPmtChans[paychAddr]
-	states := chinfo.State.LaneStates
-	numLanes := len(states)
-	ln := paych.LaneState{
-		ID:       uint64(numLanes),
-		Redeemed: big.NewInt(0),
-		Nonce:    1,
-	}
-	chinfo.State.LaneStates = append(chinfo.State.LaneStates, &ln)
-	return ln.ID, rmFake.AllocateLaneErr
+	chinfo.LastLane++
+	return chinfo.LastLane, rmFake.AllocateLaneErr
 }
 
 func (rmFake *RetrievalMarketClientFakeAPI) CreatePaymentChannel(clientAddress, minerAddress address.Address) error {
@@ -105,7 +97,7 @@ func (rmFake *RetrievalMarketClientFakeAPI) CreatePaymentChannel(clientAddress, 
 		return rmFake.CreatePaymentChannelErr
 	}
 	for paychAddr, chinfo := range rmFake.ExpectedPmtChans {
-		if chinfo.State.From == clientAddress && chinfo.State.To == minerAddress {
+		if chinfo.From == clientAddress && chinfo.To == minerAddress {
 			rmFake.ActualPmtChans[paychAddr] = true
 			return rmFake.CreatePaymentChannelErr
 		}
@@ -123,7 +115,7 @@ func (rmFake *RetrievalMarketClientFakeAPI) CreateVoucher(_ address.Address, _ *
 // It does not necessarily expect to find the channel info; it returns nil if not found
 func (rmFake *RetrievalMarketClientFakeAPI) GetPaymentChannelByAccounts(payer, payee address.Address) (address.Address, *paymentchannel.ChannelInfo) {
 	for paychAddr, chinfo := range rmFake.ExpectedPmtChans {
-		if chinfo.State.From == payer && chinfo.State.To == payee {
+		if chinfo.From == payer && chinfo.To == payee {
 			_, ok := rmFake.ActualPmtChans[paychAddr]
 			if ok {
 				return paychAddr, chinfo
