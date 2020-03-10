@@ -22,7 +22,7 @@ type ChannelInfo struct {
 	Vouchers                     []*VoucherInfo // All vouchers submitted for this channel
 }
 
-func (ci *ChannelInfo)Blank() {
+func (ci *ChannelInfo) Blank() {
 	return
 }
 

@@ -93,7 +93,7 @@ func TestManager_CreatePaymentChannel(t *testing.T) {
 		})
 	}
 
-	t.Run("errors if payment channel exists", func(t *testing.T){
+	t.Run("errors if payment channel exists", func(t *testing.T) {
 		m := NewManager(context.Background(), ds, testAPI, testAPI, viewer, &cst.ChainStateReadWriter{})
 		clientAddr, minerAddr, _, _, _ := requireSetupPaymentChannel(t, testAPI, m)
 		_, err := m.CreatePaymentChannel(clientAddr, minerAddr)
@@ -168,7 +168,7 @@ func TestManager_AddVoucherToChannel(t *testing.T) {
 		assert.NoError(t, manager.AddVoucherToChannel(paychUniqueAddr, &v))
 	})
 
-	t.Run("errors if channel doesn't exist", func(t *testing.T){
+	t.Run("errors if channel doesn't exist", func(t *testing.T) {
 		cr := NewFakeChainReader(block.NewTipSetKey(root))
 		_, manager := saveVoucherSetup(ctx, t, root, cr)
 		assert.EqualError(t, manager.AddVoucherToChannel(spect.NewActorAddr(t, "not-there"), &v), "No state for /t2bfuuk4wniuwo2tfso3bfar55hf4d6zq4fbcagui: datastore: key not found")

@@ -265,11 +265,11 @@ func (pm *Manager) createPaymentChannelWithVoucher(paychAddr address.Address, vo
 		return zeroAmt, err
 	}
 	chinfo := ChannelInfo{
-		From:     from,
-		To:       to,
-		IDAddr:   idAddr,
+		From:       from,
+		To:         to,
+		IDAddr:     idAddr,
 		UniqueAddr: paychAddr,
-		Vouchers: []*VoucherInfo{{Voucher: voucher, Proof: proof}},
+		Vouchers:   []*VoucherInfo{{Voucher: voucher, Proof: proof}},
 	}
 	if err = pm.paymentChannels.Begin(paychAddr, &chinfo); err != nil {
 		return zeroAmt, err
