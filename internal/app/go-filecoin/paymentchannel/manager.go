@@ -93,11 +93,21 @@ func (pm *Manager) AllocateLane(paychAddr address.Address) (laneID uint64, err e
 }
 
 // GetPaymentChannelByAccounts looks up a payment channel via payer/payee
-func (pm *Manager) GetPaymentChannelByAccounts(payer, payee address.Address) (address.Address, *ChannelInfo, error) {
-	//chinfos := make(chan(*ChannelInfo))
-	//if err := pm.paymentChannels.List()
-	panic("implement me")
-	return address.Undef, nil, nil
+// returns ChannelInfoUndef if not found.
+func (pm *Manager) GetPaymentChannelByAccounts(payer, payee address.Address) (*ChannelInfo, error) {
+	var chinfos []ChannelInfo
+	var found ChannelInfo
+
+	if err := pm.paymentChannels.List(&chinfos); err != nil {
+		return nil, err
+	}
+	for _, chinfo := range chinfos {
+		if chinfo.From == payer && chinfo.To == payee {
+			found = chinfo
+			break
+		}
+	}
+	return &found, nil
 }
 
 // GetPaymentChannelInfo retrieves channel info from the paymentChannels
@@ -115,12 +125,19 @@ func (pm *Manager) GetPaymentChannelInfo(paychAddr address.Address) (*ChannelInf
 
 // CreatePaymentChannel will send the message to the InitActor to create a paych.Actor.
 // If successful, a new payment channel entry will be persisted to the
-// paymentChannels via a message wait handler
-// TODO: make this return chinfo + err with a paymentchannels.Get after the Wait completes
-func (pm *Manager) CreatePaymentChannel(clientAddress, minerAddress address.Address) error {
+// paymentChannels via a message wait handler.  Returns the created payment channel address
+func (pm *Manager) CreatePaymentChannel(clientAddress, minerAddress address.Address) (address.Address, error) {
+	chinfo, err := pm.GetPaymentChannelByAccounts(clientAddress, minerAddress)
+	if err != nil {
+		return address.Undef, err
+	}
+	if !chinfo.Equal(ChannelInfoUndef) {
+		return address.Undef, xerrors.Errorf("payment channel exists for client %s, miner %s", clientAddress, minerAddress)
+	}
+
 	execParams, err := PaychActorCtorExecParamsFor(clientAddress, minerAddress)
 	if err != nil {
-		return err
+		return address.Undef, err
 	}
 	msgCid, _, err := pm.sender.Send(
 		pm.ctx,
@@ -134,31 +151,52 @@ func (pm *Manager) CreatePaymentChannel(clientAddress, minerAddress address.Addr
 		execParams,
 	)
 	if err != nil {
-		return err
+		return address.Undef, err
 	}
-	err = pm.waiter.Wait(pm.ctx, msgCid, pm.handlePaychActorCtorMessageResult)
+
+	var newPaychAddr address.Address
+
+	handleResult := func(b *block.Block, sm *types.SignedMessage, mr *vm.MessageReceipt) error {
+		var res initActor.ExecReturn
+		if err := encoding.Decode(mr.ReturnValue, &res); err != nil {
+			return err
+		}
+
+		var msgParams initActor.ExecParams
+		if err := encoding.Decode(sm.Message.Params, &msgParams); err != nil {
+			return err
+		}
+
+		var ctorParams *paychActor.ConstructorParams
+		if err = encoding.Decode(msgParams.ConstructorParams, &ctorParams); err != nil {
+			return err
+		}
+
+		chinfo := ChannelInfo{UniqueAddr: res.RobustAddress, IDAddr: res.IDAddress, From: ctorParams.From, To: ctorParams.To}
+		newPaychAddr = res.RobustAddress
+		return pm.paymentChannels.Begin(res.RobustAddress, &chinfo)
+	}
+
+	err = pm.waiter.Wait(pm.ctx, msgCid, handleResult)
 	if err != nil {
-		return err
+		return address.Undef, err
 	}
-	return nil
+
+	return newPaychAddr, nil
 }
 
-// CreateVoucher creates a signed voucher for the paymentActor, saves to store and
-// returns any error. Called by the retrieval market client
-func (pm *Manager) CreateVoucher(paychAddr address.Address, voucher *paychActor.SignedVoucher) error {
-
-	//chinfo, err := pm.paymentChannels.getChannelInfo(paychAddr)
-	//if err != nil {
-	//	return err
-	//}
-	// save voucher, secret, proof, msgCid in paymentChannels
-	return nil
+// AddVoucherToChannel saves a new signed voucher entry to the payment store
+// Assumes paychAddr channel has already been created.
+//  Called by the retrieval market client.
+func (pm *Manager) AddVoucherToChannel(paychAddr address.Address, voucher *paychActor.SignedVoucher) error {
+	_, err := pm.saveNewVoucher(paychAddr, voucher, nil)
+	return err
 }
 
-// SaveVoucher saves voucher to the store
-// called by the retrieval market provider, when it has received a new voucher from the client
+// AddVoucher saves voucher to the store
 // if payment channel record does not exist in store, it will be created.
-func (pm *Manager) SaveVoucher(paychAddr address.Address, voucher *paychActor.SignedVoucher, proof []byte) (abi.TokenAmount, error) {
+// called by the retrieval market provider, when it has received a new voucher from the client
+func (pm *Manager) AddVoucher(paychAddr address.Address, voucher *paychActor.SignedVoucher, proof []byte) (abi.TokenAmount, error) {
 	has, err := pm.paymentChannels.Has(paychAddr)
 	if err != nil {
 		return zeroAmt, err
@@ -170,6 +208,7 @@ func (pm *Manager) SaveVoucher(paychAddr address.Address, voucher *paychActor.Si
 }
 
 // ChannelExists returns whether paychAddr has a store entry, + error
+// Exported for retrieval provider
 func (pm *Manager) ChannelExists(paychAddr address.Address) (bool, error) {
 	return pm.paymentChannels.Has(paychAddr)
 }
@@ -201,35 +240,6 @@ func (pm *Manager) hasVoucher(info *ChannelInfo, voucher *paychActor.SignedVouch
 	return false
 }
 
-// handlePaychActorCtorMessageResult creates a payment channel record in the store if
-// the paychActor constructor message was successfully applied
-func (pm *Manager) handlePaychActorCtorMessageResult(b *block.Block, sm *types.SignedMessage, mr *vm.MessageReceipt) error {
-	var res initActor.ExecReturn
-	if err := encoding.Decode(mr.ReturnValue, &res); err != nil {
-		return err
-	}
-	has, err := pm.paymentChannels.Has(res.RobustAddress)
-	if err != nil {
-		return err
-	}
-	if has {
-		return xerrors.Errorf("channel exists %s", res.RobustAddress)
-	}
-
-	var msgParams initActor.ExecParams
-	if err := encoding.Decode(sm.Message.Params, &msgParams); err != nil {
-		return err
-	}
-
-	var ctorParams *paychActor.ConstructorParams
-	if err = encoding.Decode(msgParams.ConstructorParams, &ctorParams); err != nil {
-		return err
-	}
-
-	chinfo := ChannelInfo{IDAddr: res.IDAddress, From: ctorParams.From, To: ctorParams.To}
-	return pm.paymentChannels.Begin(res.RobustAddress, &chinfo)
-}
-
 func (pm *Manager) getStateView() (PaychActorStateView, error) {
 	head := pm.cr.Head()
 	root, err := pm.cr.GetTipSetStateRoot(pm.ctx, head)
@@ -258,6 +268,7 @@ func (pm *Manager) createPaymentChannelWithVoucher(paychAddr address.Address, vo
 		From:     from,
 		To:       to,
 		IDAddr:   idAddr,
+		UniqueAddr: paychAddr,
 		Vouchers: []*VoucherInfo{{Voucher: voucher, Proof: proof}},
 	}
 	if err = pm.paymentChannels.Begin(paychAddr, &chinfo); err != nil {
@@ -267,6 +278,7 @@ func (pm *Manager) createPaymentChannelWithVoucher(paychAddr address.Address, vo
 
 }
 
+// saveNewVoucher saves a voucher to an existing payment channel
 func (pm *Manager) saveNewVoucher(paychAddr address.Address, voucher *paychActor.SignedVoucher, proof []byte) (abi.TokenAmount, error) {
 	var chinfo ChannelInfo
 	st := pm.paymentChannels.Get(paychAddr)

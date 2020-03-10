@@ -5,6 +5,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/piecestore"
 	impl "github.com/filecoin-project/go-fil-markets/retrievalmarket/impl"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket/network"
+	"github.com/filecoin-project/go-fil-markets/storedcounter"
 	"github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -40,10 +41,16 @@ func NewRetrievalProtocolSubmodule(
 	ccon := retmkt.NewRetrievalClientConnector(bs, cr, signer, pchMgrAPI)
 
 	// TODO: use latest go-fil-markets with persisted deal store
-	marketProvider := impl.NewProvider(providerAddr, pcon, netwk, retrievalDealPieceStore, bs)
+	marketProvider, err := impl.NewProvider(providerAddr, pcon, netwk, retrievalDealPieceStore, bs, ds)
+	if err != nil {
+		return nil, err
+	}
 	pcon.SetProvider(marketProvider)
-
-	marketClient := impl.NewClient(netwk, bs, ccon, nil)
+	storedCounter := storedcounter.New(ds, datastore.NewKey("nextDealID"))
+	marketClient, err := impl.NewClient(netwk, bs, ccon, nil, ds, storedCounter)
+	if err != nil {
+		return nil, err
+	}
 	ccon.SetRetrievalClient(marketClient)
 
 	return &RetrievalProtocolSubmodule{pcon, ccon}, nil

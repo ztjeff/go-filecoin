@@ -72,16 +72,6 @@ func (r *RetrievalProviderConnector) UnsealSector(ctx context.Context, sectorID 
 	return newWrappedReadCloser(unsealedSector, offset, length)
 }
 
-// SavePaymentVoucher stores the provided payment voucher in the local store
-func (r *RetrievalProviderConnector) SavePaymentVoucher(_ context.Context, paymentChannel address.Address, voucher *paych.SignedVoucher, proof []byte, expected abi.TokenAmount) (abi.TokenAmount, error) {
-	actual, err := r.paychMgr.SaveVoucher(paymentChannel, voucher, proof, expected)
-	if err != nil {
-		return abi.NewTokenAmount(0), err
-	}
-
-	return actual, nil
-}
-
 type limitedOffsetReadCloser struct {
 	originalRC    io.ReadCloser
 	limitedReader io.Reader

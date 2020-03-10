@@ -168,7 +168,7 @@ func (rmFake *RetrievalMarketClientFakeAPI) SignBytes(data []byte, addr address.
 //	return rmFake.MsgSendCid, nil, rmFake.MsgSendErr
 //}
 
-// SaveVoucher mocks saving a voucher to the payment channel store.
+// AddVoucher mocks saving a voucher to the payment channel store.
 func (rmFake *RetrievalMarketClientFakeAPI) SaveVoucher(paychAddr address.Address, _ *paych.SignedVoucher, _ []byte, expectedAmt abi.TokenAmount) (abi.TokenAmount, error) {
 	_, ok := rmFake.ExpectedVouchers[paychAddr]
 	if !ok {
